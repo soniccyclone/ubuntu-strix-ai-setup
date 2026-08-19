@@ -109,3 +109,61 @@ comparable model land near 80 t/s, which is consistent.
 
 All model weights land in GTT. `ttm.pages_limit` and `amdgpu.gttsize` are both
 root-owned sysfs knobs; changing them for real is a boot-arg edit.
+
+## 2026-08-19 — First real benchmark, and a wrong guess corrected (probe 5)
+
+Qwen3.6-35B-A3B UD-Q4_K_XL, 20.81 GiB on disk, llama.cpp b10502 Vulkan:
+
+    pp512     321.83 ± 88.49 t/s
+    pp4096    255.42 ±  0.80 t/s
+    tg128      25.93 ±  0.62 t/s
+
+Published Vulkan figures for Qwen3-Coder-30B-A3B on the same silicon are
+1115 pp512 / 97.7 tg128. Same active-parameter count, a quarter of the decode.
+
+My first move was to blame a concurrent model download for stealing bandwidth.
+It had already died — stalled at 24.94 GB — and load average was 1.26. The
+number is real. Recording the wrong guess because it is the kind that would
+otherwise get made twice.
+
+### What it actually is
+
+Sampled `gpu_busy_percent` every 2 s through a clean re-run:
+
+    2 4 42 79 97 99 95 98 97 98 98 98 98
+
+The GPU is saturated. 25.9 t/s against ~1.7 GB of weights per token is roughly
+44 GB/s of traffic, a fifth of what this GPU pulls when it is actually
+bandwidth-limited. Saturated and slow at 44 GB/s means the shaders are busy
+doing something other than streaming weights.
+
+Qwen3.6-35B-A3B is a hybrid: `10 × (3 × (Gated DeltaNet → MoE) → 1 × (Gated
+Attention → MoE))`. Three quarters of its blocks use linear attention, not
+softmax attention. The published comparison model is a conventional MoE. The
+difference is architecture, not size.
+
+**Decode on this model is compute-bound, not bandwidth-bound.** That inverts
+the standard local-LLM sizing rule — "decode is bandwidth-bound, so run the
+largest model that fits" — for this whole class of model.
+
+### Two predictions this makes, both cheap to test
+
+1. If decode is compute-bound rather than bandwidth-bound, Q6_K_XL (31.8 GB,
+   ~50% more bytes per token) should decode at close to Q4's rate. A
+   bandwidth-bound model would lose about a third.
+2. If the DeltaNet kernels are specifically where it goes, Qwen3-Coder-30B-A3B
+   — conventional attention, same 3 B active — should decode several times
+   faster on the same backend and binary.
+
+Both downloads are running. Harness is `repl/bench.sh`, which now refuses to
+start while a `.gguf` download is live and records `gpu_busy_percent` next to
+every number, because those two mistakes both happened today.
+
+### Why this raises the stakes on the backend decision
+
+Nathan chose "build both, pick per model." That was a good call on prefill
+grounds and is now a better one: a compute-bound decode is a kernel-quality
+problem, and kernel quality is exactly where ROCm and RADV differ most. The
+published Vulkan-wins-decode result was measured on conventional attention.
+For DeltaNet the ranking may well invert. This moves benchmarking both
+backends from nice-to-have to load-bearing.
