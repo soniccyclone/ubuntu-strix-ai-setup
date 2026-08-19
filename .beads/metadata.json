@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "ubuntu_strix_ai_setup",
+  "project_id": "b7e3dbb6-b219-4332-8099-081d16497339"
+}
