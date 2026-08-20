@@ -1,0 +1,16 @@
+[Unit]
+Description=Bridge the contract's loopback port to a unix socket for containers
+After=llama-swap.service
+Requires=llama-swap.service
+
+[Service]
+Type=simple
+# 0600 socket inside a 0700 runtime dir. This is the only path a container has
+# to the contract, and the only host mount anywhere in the harness.
+ExecStartPre=-/usr/bin/rm -f %t/contract.sock
+ExecStart=/usr/bin/socat UNIX-LISTEN:%t/contract.sock,fork,reuseaddr,mode=600 TCP:127.0.0.1:8080
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
