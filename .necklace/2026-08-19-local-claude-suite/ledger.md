@@ -680,3 +680,36 @@ waiting on a marker file I had renamed. Now `pgrep -x curl`, matching real
 processes by name, and it prints what it found so a refusal can be diagnosed
 rather than guessed at. Third instance today of `-f` matching a command line
 that quotes the pattern.
+
+## 2026-08-20 — Backend decision reversed: Vulkan only, ROCm deferred
+
+Nathan, on being offered a prefill-at-depth measurement to sharpen the
+ROCm-vs-Vulkan choice: don't. Ship Vulkan, get the applications working, and
+revisit the backend only if the latency actually bothers him in use. The
+comparison becomes a piece of research to run **after** the suite is delivered,
+not a decision blocking it.
+
+This reverses his earlier "both, chosen per model" answer, and the reversal is
+correct. That choice was made when the only evidence was published numbers on
+someone else's box. Since then Vulkan measured 811 pp512 / 59.6 tg128 on the
+daily driver and 215 / 26.4 on the 122 B — usable figures, from a backend that
+costs nothing to install and survives upgrades by re-extracting a tarball. A
+20% prefill gain does not justify a source build per upgrade on a distribution
+AMD does not target, before a single application has run.
+
+`spec.md` amended in two places: the Inference layer is now one backend, and the
+terminal actor's outcome no longer promises "the backend that favours prefill".
+
+### Carried forward to the eventual comparison
+
+  - ROCm vs Vulkan, both backends, same harness, same files.
+  - Prefill at realistic agent depth — pp2048 at d8192/d32768/d60000 — since
+    time-to-first-token on a large context is the thing an agent loop actually
+    feels, and a 512-token prefill number does not predict it.
+  - The MTP question from probe 10: the Beinsezii HALO quant was judged with
+    its speculative-decoding head switched off, because llama-bench never
+    speculates. Re-run under llama-server with MTP enabled before concluding
+    anything about it.
+
+The trigger is felt latency, not curiosity. Written down so it is not silently
+dropped, and not silently started either.

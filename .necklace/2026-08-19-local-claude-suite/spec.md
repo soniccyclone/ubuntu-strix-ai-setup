@@ -66,7 +66,7 @@ decode-bound.
 
 | Actor | Must be able to observe |
 | --- | --- |
-| Nathan at a terminal | A coding agent driving a local model with no network egress, on the backend that favours prefill, with a measured tokens/sec figure he chose the model against |
+| Nathan at a terminal | A coding agent driving a local model with no network egress, against a model whose throughput he has seen measured on this machine |
 | Nathan in a GUI | A desktop agent that reads and writes files in a folder he nominates, asks before destructive actions, and runs on the same local endpoint with no separate model configuration |
 | Nathan designing | A desktop design tool whose AI is pointed at the same local endpoint, that can take a described design to an editable document and export it as JSX or HTML, and take HTML back the other way |
 | Nathan, any leg | Switching which model backs a role by editing one file, with no frontend reconfigured and no service reinstalled |
@@ -104,9 +104,11 @@ Four layers, each replaceable without disturbing the others:
 **Machine.** Raise the GTT ceiling toward the installed memory, put Nathan in `render`, one reboot.
 Everything downstream assumes the raised ceiling.
 
-**Inference.** llama.cpp, kept as two independent builds — the prebuilt Vulkan release, which needs
-no root and survives upgrades by re-extracting, and a ROCm build from source. Neither is the
-default; each model is assigned the backend its measured numbers favour.
+**Inference.** llama.cpp on the prebuilt Vulkan release — no root, and upgrades are a re-extract.
+One backend, not two. ROCm wins prefill by roughly a fifth on paper and costs a source build on
+every upgrade, on a distribution AMD does not target; that trade is not worth making before anything
+is running. It is deferred to a comparison after the suite works, and the trigger for running it is
+Nathan finding the latency unacceptable in use rather than a number looking improvable.
 
 **Contract.** One long-lived proxy on one port, presenting both an OpenAI-shaped and an
 Anthropic-shaped API over a roster of models, launching the right llama.cpp binary per model and
