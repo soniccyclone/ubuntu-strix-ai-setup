@@ -1,0 +1,13 @@
+# opencode agent container.
+#
+# opencode is installed at BUILD time because the agent network (suite-net) is
+# --internal and has no route to a registry. Anything the agent needs must be
+# in the image; nothing can be fetched once it is running. That is the point.
+FROM docker.io/library/node:24-alpine
+RUN apk add --no-cache curl jq git bash
+RUN npm i -g opencode-ai@1.18.19
+# The agent's whole world: an empty workspace on a named volume.
+WORKDIR /work
+ENV OPENCODE_CONFIG=/etc/opencode/opencode.json
+COPY opencode.json /etc/opencode/opencode.json
+CMD ["/bin/bash"]

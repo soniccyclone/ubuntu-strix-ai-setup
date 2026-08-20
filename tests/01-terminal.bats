@@ -34,3 +34,26 @@ CONTRACT="${CONTRACT:-http://127.0.0.1:8080}"
     jq -e --arg r "$role" '.data[]|select(.id==$r)' <<<"$output" >/dev/null
   done
 }
+
+@test "opencode reaches the contract and completes one tool call" {
+  vol="oc-$$"
+  podman volume create --label suite-test "$vol" >/dev/null
+
+  # opencode will not treat a bare directory as a project root; without a git
+  # repo it resolves paths against / and its own permission layer refuses the
+  # read. Seed a real repo, which is what a project actually looks like.
+  podman run --rm --network=suite-net -v "${vol}:/work" -w /work localhost/suite-opencode \
+    sh -c 'git init -q && git config user.email t@t && git config user.name t &&
+           echo "the secret word is XYLOPHONE" > notes.txt &&
+           git add -A && git commit -qm init' >/dev/null
+
+  run timeout 900 podman run --rm --network=suite-net -v "${vol}:/work" -w /work \
+      localhost/suite-opencode \
+      opencode run --model contract/fast "Read notes.txt and tell me the secret word."
+
+  podman volume rm -f "$vol" >/dev/null
+  [ "$status" -eq 0 ]
+  # The tool call actually happened, and produced the file's contents.
+  [[ "$output" == *"Read notes.txt"* ]]
+  [[ "$output" == *"XYLOPHONE"* ]]
+}
