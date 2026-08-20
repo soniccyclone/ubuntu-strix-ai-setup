@@ -22,15 +22,29 @@ from 16 Zen 5 cores against a bus rated near 256 GB/s. The cores cannot saturate
 the iGPU gets far closer. Any layer that lands on CPU runs at roughly a third of the available
 bandwidth, so partial offload is a proportional loss rather than a rounding error.
 
-**Decode on the model Nathan remembers is compute-bound, not bandwidth-bound.** Qwen3.6-35B-A3B
-UD-Q4_K_XL on llama.cpp b10502 Vulkan measures pp512 321.8, pp4096 255.4, tg128 25.9 t/s, with
-`gpu_busy_percent` sampling `97 99 95 98 97 98 98 98 98` throughout. Published figures for
-Qwen3-Coder-30B-A3B on the same silicon are 1115 pp512 / 97.7 tg128 — same active parameter count,
-four times the decode. 25.9 t/s at ~1.7 GB of weights per token is about 44 GB/s of traffic, a
-fifth of what this GPU pulls when it is genuinely bandwidth-limited. Saturated and slow at 44 GB/s
-means the shaders are busy on something other than streaming weights, and the difference between
-the two models is that three quarters of Qwen3.6's blocks are Gated DeltaNet rather than softmax
-attention. **Model choice here cannot be made by picking the largest thing that fits.**
+**Decode is compute-bound, not bandwidth-bound, and what decides the cost is not size.** Three
+runs on llama.cpp b10502 Vulkan, same binary and flags, with `gpu_busy_percent` pinned at 97-98%
+throughout each:
+
+| Model | Attention | Quant | Size | pp512 | tg128 |
+| --- | --- | --- | ---: | ---: | ---: |
+| Qwen3.6-35B-A3B | hybrid DeltaNet | Q4_K_XL | 20.81 GiB | 321.8 | 25.9 |
+| Qwen3.6-35B-A3B | hybrid DeltaNet | Q6_K | 29.65 GiB | 641.1 | 46.6 |
+| Qwen3-Coder-30B-A3B | conventional | Q4_K_XL | 16.45 GiB | 773.8 | 78.6 |
+
+Two independent effects, and they multiply. Conventional attention decodes 3.0x faster than hybrid
+DeltaNet at the same quant — three quarters of Qwen3.6's blocks use linear attention, and RADV's
+shaders for that path are where the time goes. Separately, and against every intuition about
+quantisation, **the larger quant decodes 80% faster**: Q6_K beats Q4_K_XL while carrying 9 GiB more
+weight. A bigger file that runs faster cannot be a bandwidth story; the Q4_K path on this driver is
+simply a worse shader than the Q6_K path.
+
+The conventional model at 78.6 t/s lands near the published 97.7 for the same model at Q4_K_S on
+this silicon, which rules out anything systemic throttling the box. The slow numbers belong to what
+was being run, not to the machine.
+
+**Model choice here is a three-way interaction — architecture × quant × backend — and none of the
+three is predictable from a model card.**
 
 **The two backends win different halves of the workload.** Published gfx1151 numbers put Vulkan
 ahead on decode by roughly a third and ROCm ahead on prefill by roughly a fifth. Agentic coding is
@@ -102,11 +116,14 @@ role. Each is pointed at the contract and configured with role names. All three 
 base URL against an OpenAI- or Anthropic-shaped endpoint, which was confirmed by reading their
 provider code rather than their documentation.
 
-The roster is chosen by measurement, not by parameter count, because the third finding above says
-parameter count predicts the wrong thing on this hardware. Candidates are benchmarked on both
-backends before any role is assigned, and the results are committed. Where a conventional-attention
-model beats a newer hybrid one on decode, it wins the interactive roles regardless of benchmark
-scores on paper.
+The roster is chosen by measurement, because the third finding says the things normally used to
+choose — parameter count, file size, quant level — predict the wrong direction on this hardware.
+Every candidate is measured across the combinations that plausibly matter before any role is
+assigned, and the numbers are committed next to the config that uses them. Two consequences follow
+that a reader should expect to see honoured: a conventional-attention model that decodes faster
+takes the interactive roles over a newer hybrid that scores better on paper, and a quant is picked
+for its measured throughput rather than for being small. On a 122 GiB box, where a larger quant
+measures faster it is strictly better and there is no tradeoff to weigh.
 
 The layering is the point. OpenPencil is six months old and goose is young; the proxy and llama.cpp
 are not. When a frontend is replaced, the contract does not move.
