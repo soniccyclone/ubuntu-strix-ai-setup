@@ -167,3 +167,56 @@ problem, and kernel quality is exactly where ROCm and RADV differ most. The
 published Vulkan-wins-decode result was measured on conventional attention.
 For DeltaNet the ranking may well invert. This moves benchmarking both
 backends from nice-to-have to load-bearing.
+
+## 2026-08-19 — Both predictions confirmed, and they are two effects (probe 6)
+
+Machine quiet, nothing downloading, `repl/bench.sh` guard satisfied. Same
+binary (b10502 Vulkan), same flags, same run.
+
+    model                 attention      quant       size        pp512    tg128
+    Qwen3.6-35B-A3B       hybrid DN      Q4_K_XL   20.81 GiB     321.8     25.9
+    Qwen3.6-35B-A3B       hybrid DN      Q6_K      29.65 GiB     641.1     46.6
+    Qwen3-Coder-30B-A3B   conventional   Q4_K_XL   16.45 GiB     773.8     78.6
+
+**Prediction 1 was right in direction and badly wrong in magnitude.** I expected
+Q6 to hold roughly level with Q4 if decode was compute-bound. It did not hold
+level — it went 80% *faster* while being 50% larger. A bigger quant that decodes
+faster cannot be explained by bandwidth under any reading. The Q4_K path on
+RADV is simply a worse shader than the Q6_K path.
+
+**Prediction 2 was right.** Conventional attention at the same quant decodes
+3.0x faster than hybrid DeltaNet. So the architecture effect I claimed is real
+and roughly the size I guessed.
+
+The two are independent and multiply. Nothing in probe 5 distinguished them,
+because probe 5 had only one data point; I attributed the whole gap to DeltaNet
+and would have shipped that as the finding.
+
+### The sanity check that matters
+
+Qwen3-Coder-30B-A3B at 78.6 t/s sits close to the published 97.7 for the same
+model at Q4_K_S on this silicon. Different quant, different build. Close enough
+that the box is behaving normally for a conventional model, which rules out the
+boring explanation — nothing systemic is throttling this machine. The slow
+numbers are specific to what was being run, not to the machine.
+
+### What this does to the plan
+
+Selection is a three-way interaction — architecture × quant × backend — and not
+one of the three is predictable from a model card. The spec's Approach already
+said "benchmark before assigning roles"; this is now the justification rather
+than a precaution.
+
+One immediately actionable consequence: **Qwen3.6-35B-A3B should be run at Q6_K,
+never at Q4_K_XL.** Higher quality and 80% more throughput at the cost of 9 GiB
+on a box with 122. There is no tradeoff to weigh; Q4 is dominated.
+
+Downloading Q8_0 (36.9 GB) to find where the trend turns over. If Q8 also holds
+near 46 t/s then this box should run near-lossless quants as a matter of course,
+which is a different default from the one everyone assumes.
+
+### Aside on `gpu_busy_percent`
+
+Every run shows a long low-utilisation head (7-10%) before the ramp to 97-98%.
+That is the model being read off NVMe into page cache, not the benchmark. Worth
+knowing before someone reads a utilisation trace and concludes the GPU is idle.
