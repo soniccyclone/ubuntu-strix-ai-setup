@@ -810,3 +810,38 @@ a work volume outliving its container and being readable by another.
 That third test is the one worth having. Binding the contract somewhere test
 containers can reach it is the easy thing to get wrong in the direction of
 binding `0.0.0.0`, and there is a second machine on this LAN.
+
+## 2026-08-20 — Test scope cut back: Nathan does the UAT, not me
+
+Nathan, on the CUJ document: an LLM cannot test whether these tools "work" in
+the sense that matters. He will run his own acceptance by using them and judging
+against biases I do not have. Don't build large tests that look good on paper
+and mean nothing to him.
+
+He is right and it was a structural fault in the document, not a matter of
+degree. Rows like `agent completes a task spanning two files` and `described
+screen becomes addressable nodes` were me asserting taste I do not possess.
+They would have gone green and told him nothing.
+
+### The principle that should have been there from the start
+
+**Rigor goes where failure is silent.** A bad edit or an ugly layout announces
+itself in seconds and needs no test. An agent reaching the host filesystem, or
+the contract binding `0.0.0.0` on a LAN with a second machine on it, is
+invisible until it matters.
+
+So: CUJ-09 is tested to destruction, five tests, because every failure mode in
+it is silent and expensive. Everything else gets a smoke test that proves the
+plumbing — does it start, does it connect, is the config where it should be —
+and stops there.
+
+### Structural change
+
+Every CUJ now carries a **Nathan validates** line naming what only he can judge,
+and three of them say "nothing", which is the honest answer for the two
+maintainer CUJs and for the isolation boundary. A CUJ whose tests pass is
+*plumbed*, not *done*: it is done when he has used it and said it is worth
+keeping.
+
+27 tests down to 21, and the survivors changed character. The cut was not for
+speed; it was that the removed ones were measuring the wrong thing.
