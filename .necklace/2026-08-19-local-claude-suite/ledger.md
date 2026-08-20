@@ -713,3 +713,41 @@ terminal actor's outcome no longer promises "the backend that favours prefill".
 
 The trigger is felt latency, not curiosity. Written down so it is not silently
 dropped, and not silently started either.
+
+## 2026-08-20 — CUJ document written
+
+Eight actor-outcome pairs from `spec.md`, eight CUJs. `cuj.md` beside this file.
+
+**Test convention established, because the repository had none.** `bats-core`
+files at `tests/NN-<slice>.bats`, run by `make test`. `bats` installs user-level
+through npm (1.13.0, no root, and he already runs node 24 under nvm); `jq` is
+already at `/usr/bin/jq`. Every test here is an integration test against a
+running system — start a service, make a request, read a file. Nothing in this
+project is a pure function worth unit-testing, and the CLAUDE.md preference for
+integration over unit tests points the same way.
+
+**Slicing.** CUJ-01 stands the contract up and drives a real task through
+opencode, so the first slice is end to end rather than a layer. CUJ-02, 03 and
+05 each add one frontend all the way through. CUJ-04 and 08 are properties of
+the assembled system. CUJ-06 and 07 depend on nothing and can start immediately,
+which matters because they are the two that are already partly done.
+
+**Where the risk lives.** CUJ-01 carries four of the five tests that could
+actually fail for reasons no measurement today predicts: whether the agent
+completes a two-file task, whether every tool call is well-formed, whether it
+re-reads files it has already read, and whether it stops on its own. Those are
+the spec's open risk written down as assertions. If the roster is wrong, this is
+where it shows.
+
+**Rows carrying REPL findings.** Eleven of the twenty-seven test rows have an
+`Informed by` entry, and they are the ones where today's mistakes became
+assertions: the harness refusing while a download runs, results rows naming
+their packager because identical sizes differed 2.24x, utilisation recorded
+beside every timing because 25.9 t/s at 98% busy and at 10% busy are opposite
+problems, the grub backup differing by exactly one line, and the vision test
+using an image containing a specific word because a stubbed mmproj will answer
+plausibly about a blank one.
+
+Nothing is blocked. `spec.md` carries no unresolved judgment question — the
+backend choice was settled and deferred, and the media pipeline is a separate
+cycle rather than an open question in this one.
