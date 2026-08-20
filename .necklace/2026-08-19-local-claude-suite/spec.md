@@ -22,29 +22,32 @@ from 16 Zen 5 cores against a bus rated near 256 GB/s. The cores cannot saturate
 the iGPU gets far closer. Any layer that lands on CPU runs at roughly a third of the available
 bandwidth, so partial offload is a proportional loss rather than a rounding error.
 
-**Decode is compute-bound, not bandwidth-bound, and what decides the cost is not size.** Three
-runs on llama.cpp b10502 Vulkan, same binary and flags, with `gpu_busy_percent` pinned at 97-98%
-throughout each:
+**Decode is compute-bound, and nothing on a model card predicts what it costs.** Six runs on
+llama.cpp b10502 Vulkan, same binary and flags, `gpu_busy_percent` at 95-98% throughout each. Full
+matrix in `repl/results.md`:
 
-| Model | Attention | Quant | Size | pp512 | tg128 |
-| --- | --- | --- | ---: | ---: | ---: |
-| Qwen3.6-35B-A3B | hybrid DeltaNet | Q4_K_XL | 20.81 GiB | 321.8 | 25.9 |
-| Qwen3.6-35B-A3B | hybrid DeltaNet | Q6_K | 29.65 GiB | 641.1 | 46.6 |
-| Qwen3-Coder-30B-A3B | conventional | Q4_K_XL | 16.45 GiB | 773.8 | 78.6 |
+| Model | Attention | Packager | Quant | Size | pp512 | tg128 |
+| --- | --- | --- | --- | ---: | ---: | ---: |
+| Qwen3.6-35B-A3B | hybrid DeltaNet | bartowski | Q4_K_M plain | 20.74 GiB | 707 | 58.0 |
+| Qwen3.6-35B-A3B | hybrid DeltaNet | unsloth | Q8_0 plain | 34.36 GiB | 705 | 46.3 |
+| Qwen3.6-35B-A3B | hybrid DeltaNet | unsloth | UD-Q6_K_XL dyn | 29.65 GiB | 641 | 46.6 |
+| Qwen3.6-35B-A3B | hybrid DeltaNet | unsloth | UD-Q4_K_XL dyn | 20.81 GiB | 322 | 25.9 |
+| Qwen3-Coder-30B-A3B | conventional | unsloth | UD-Q4_K_XL dyn | 16.45 GiB | 774 | 78.6 |
+| Qwen3-Coder-30B-A3B | conventional | lmstudio | Q4_K_M plain | 17.35 GiB | 770 | 70.5 |
 
-Two independent effects, and they multiply. Conventional attention decodes 3.0x faster than hybrid
-DeltaNet at the same quant — three quarters of Qwen3.6's blocks use linear attention, and RADV's
-shaders for that path are where the time goes. Separately, and against every intuition about
-quantisation, **the larger quant decodes 80% faster**: Q6_K beats Q4_K_XL while carrying 9 GiB more
-weight. A bigger file that runs faster cannot be a bandwidth story; the Q4_K path on this driver is
-simply a worse shader than the Q6_K path.
+Three variables, and they do not compose independently. Quantiser packaging is the sharpest: the
+same Ultra Dynamic scheme is 2.24x **slower** than a plain quant on the DeltaNet model and 1.12x
+**faster** on the conventional one. Same packager, same quant level, opposite sign — it substitutes
+IQ-family types on selected tensors, which is a small win on conventional attention and lands on
+catastrophic RADV kernels in the linear-attention path. Compared fairly, plain against plain,
+architecture costs only 1.21x on decode. Quant level is sub-linear: 66% more bytes per token buys a
+20% slowdown, so above roughly Q6 size is nearly free.
 
-The conventional model at 78.6 t/s lands near the published 97.7 for the same model at Q4_K_S on
-this silicon, which rules out anything systemic throttling the box. The slow numbers belong to what
-was being run, not to the machine.
+The conventional model at 70-79 t/s brackets the published 97.7 for the same model at Q4_K_S on this
+silicon, which rules out anything systemic throttling the box.
 
-**Model choice here is a three-way interaction — architecture × quant × backend — and none of the
-three is predictable from a model card.**
+**Model choice here means choosing a file — that model, that quant, that packager, that backend —
+and the only way to know is to run it.**
 
 **The two backends win different halves of the workload.** Published gfx1151 numbers put Vulkan
 ahead on decode by roughly a third and ROCm ahead on prefill by roughly a fifth. Agentic coding is
