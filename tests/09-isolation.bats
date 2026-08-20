@@ -17,10 +17,23 @@ setup_file() {
     || { echo "harness not up; run: ./harness/suite.sh up" >&2; return 1; }
 }
 
-@test "no agent container declares a host bind mount" {
-  # Any -v/--volume whose source starts with / or ~ is a host path.
-  run grep -nE '(-v|--volume)[= ]+[~/]' harness/suite.sh
-  [ "$status" -ne 0 ]
+@test "only the proxy has a host bind mount, and it is one socket" {
+  # Inspect what is actually mounted, not what the source text says: ${SOCK}
+  # and ${vol} are indistinguishable to grep, and only one is a host path.
+  run podman inspect contract-proxy --format '{{range .Mounts}}{{.Type}}:{{.Source}}{{"\n"}}{{end}}'
+  [ "$status" -eq 0 ]
+  binds=$(grep -c '^bind:' <<<"$output" || true)
+  [ "$binds" -eq 1 ]
+  [[ "$output" == *"contract.sock"* ]]
+
+  # An agent container mounts nothing from the host at all.
+  vol="mnt-$$"
+  podman volume create --label suite-test "$vol" >/dev/null
+  cid=$(podman run -d --network="$NET" -v "${vol}:/work" "$PROBE" sleep 30)
+  run podman inspect "$cid" --format '{{range .Mounts}}{{.Type}}{{"\n"}}{{end}}'
+  podman rm -f "$cid" >/dev/null; podman volume rm -f "$vol" >/dev/null
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"bind"* ]]
 }
 
 @test "an agent container cannot see the host home" {
@@ -54,8 +67,17 @@ setup_file() {
   [ "$status" -ne 0 ]
 }
 
-@test "the contract is not reachable from the LAN" {
-  # Every globally-scoped address this host owns must refuse the contract port.
+@test "the contract is bound to loopback and unreachable from the LAN" {
+  # Assert the BINDING, not just a refusal. A refusal can come from a firewall
+  # rule someone disables later; a socket bound to 127.0.0.1 cannot receive a
+  # packet addressed to a routable interface at all. No firewall is involved.
+  run ss -ltn "sport = :${CONTRACT_PORT}"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"127.0.0.1:${CONTRACT_PORT}"* ]]
+  [[ "$output" != *"0.0.0.0:${CONTRACT_PORT}"* ]]
+  [[ "$output" != *"*:${CONTRACT_PORT}"* ]]
+
+  # And confirm the consequence on every routable address this host owns.
   lan_addrs=$(ip -4 -o addr show scope global | awk '{split($4,a,"/"); print a[1]}')
   [ -n "$lan_addrs" ]
   for addr in $lan_addrs; do

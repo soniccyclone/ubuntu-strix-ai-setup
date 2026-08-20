@@ -47,45 +47,39 @@ sudo usermod -aG render,video nathan
 
 ---
 
-## 3. Close the contract port to the LAN (PENDING)
+## 3. Close the contract to the LAN — NOT NEEDED, no root required
 
-**Why.** llama-swap must bind `0.0.0.0`. This is not a preference — it was
-measured. Rootless podman containers cannot reach a loopback-bound host service:
+**Superseded.** An earlier version of this document asked for four `ufw`
+commands enabling a machine-wide firewall to protect one port. That was a
+band-aid over a design I had given up on too early, and it is not needed.
 
-    host service bound 127.0.0.1  ->  container gets 000
-    host service bound 0.0.0.0    ->  container gets 200
-    host.containers.internal      =   169.254.1.2 (pasta), not the host loopback
-
-`pasta:--map-host-loopback` does reach a loopback-bound service, but pasta cannot
-be combined with a bridge network, and the agents need an `--internal` bridge to
-have no route off the box. So the contract binds `0.0.0.0` and the LAN is closed
-at the firewall instead.
-
-This host is on `192.168.1.22` (ethernet) and `192.168.1.76` (wifi), and there is
-a second machine on that LAN. Without this rule, every local model on this box is
-served to it.
+The contract binds `127.0.0.1` and nothing else:
 
 ```
-sudo ufw --force enable
-sudo ufw allow in on lo
-sudo ufw deny in on enxd0c1b5239c45 to any port 8080 proto tcp
-sudo ufw deny in on wlp193s0        to any port 8080 proto tcp
+$ ss -ltn 'sport = :8080'
+LISTEN 0 4096 127.0.0.1:8080 0.0.0.0:*
 ```
 
-**Verify.** `make test-isolation` — the test `the contract is not reachable from
-the LAN` dials every globally-scoped address this host owns and requires each to
-refuse, while the same request from inside a test container must still succeed.
-It is red until this is applied.
+A socket bound to loopback cannot receive a packet addressed to a routable
+interface. That is the kernel's behaviour, not a filter, so there is no rule to
+forget and no policy to enable.
 
-**Rollback.**
+Containers still reach it because the path does not use the network stack at
+all: a host `socat` bridges `127.0.0.1:8080` to a unix socket at
+`$XDG_RUNTIME_DIR/contract.sock` (mode `0600`, inside a `0700` directory), and
+`contract-proxy` — which runs `socat`, is not an agent, and never sees a model
+or a prompt — has that one socket bind-mounted. Agents get no mount but their
+own work volume.
+
+Verified by `make test-isolation`, which asserts the binding directly rather
+than inferring it from a connection refusal, because a refusal could come from
+a firewall someone later disables.
+
+**If the ufw commands were already run**, undo them:
 
 ```
-sudo ufw delete deny in on enxd0c1b5239c45 to any port 8080 proto tcp
-sudo ufw delete deny in on wlp193s0        to any port 8080 proto tcp
-sudo ufw disable        # only if ufw was inactive before; it was
+sudo ufw disable
 ```
 
-**Note.** `ufw` was `inactive` before this change. Enabling it applies ufw's
-default policy to everything else on this machine, not just port 8080. That is a
-broader change than the one line implies, and it is the reason this step is
-written down rather than folded into a setup script.
+`ufw` was inactive before any of this, so disabling returns the machine to where
+it started.

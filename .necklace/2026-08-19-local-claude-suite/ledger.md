@@ -912,3 +912,54 @@ harness. Only half of it does: llama-swap on bare metal has no container
 dependency, while CUJ-09's LAN test needs a real contract to dial. The
 epic-level edge was replaced with two child-level ones, and the ordering
 inverted from what `cuj.md` assumed.
+
+## 2026-08-20 — ufw was the wrong answer, and Nathan caught it
+
+I concluded the contract had to bind `0.0.0.0` to be container-reachable, and
+proposed four `ufw` commands enabling a machine-wide firewall to protect one
+port. Nathan pushed back on it. He was right, and the reasoning failure is worth
+naming: I hit a constraint (`cannot set multiple networks without bridge network
+mode`), declared the problem unsolvable, and reached for a policy band-aid
+instead of questioning the premise that the path had to be a network socket at
+all.
+
+**It does not.** llama-swap binds `127.0.0.1:8080` and nothing else:
+
+    LISTEN 0 4096 127.0.0.1:8080 0.0.0.0:*  users:(("llama-swap",...))
+
+A socket bound to loopback cannot receive a packet addressed to a routable
+interface. That is kernel behaviour, not a filter — no rule to forget, nothing
+to enable, and no root anywhere in it.
+
+Containers still reach it because the path leaves the network stack entirely:
+
+    llama-swap      127.0.0.1:8080, loopback only
+    host socat      TCP 127.0.0.1:8080  <->  $XDG_RUNTIME_DIR/contract.sock
+                    socket mode 0600, inside a 0700 directory
+    contract-proxy  on suite-net, that ONE socket bind-mounted. Runs socat.
+                    Not an agent; never sees a model or a prompt.
+    agent           suite-net only, no host mount at all, work on a named volume
+
+Verified: agent reaches the roster through the proxy; both LAN addresses refuse;
+`podman inspect` shows the proxy holds exactly one bind mount and an agent
+container holds none.
+
+`docs/privileged-steps.md` now records this as **not needed**, with the undo for
+the ufw commands in case they were run. Privileged steps for this project remain
+two: the GTT boot argument and the `render` group, both already done.
+
+### Two test bugs found by running the suite, both mine
+
+**Asserting on a rendering detail.** The opencode test checked for the literal
+line `Read notes.txt`. That is opencode's narration of a sampled model's tool
+choice and it varies between runs — it passed, then failed, then passed. The
+assertion now checks for `XYLOPHONE`, a string that exists only inside the file
+and cannot be guessed, so its presence proves a read happened without depending
+on how the agent describes itself.
+
+**Grepping source text for a property only visible at runtime.** The bind-mount
+test grepped `harness/suite.sh` for `-v` with a host-path source, but `${SOCK}`
+and `${vol}` are identical to grep and only one is a host path. It now runs
+`podman inspect` against a live proxy and a live agent container, asserting the
+proxy has exactly one bind and the agent has none. Checking reality instead of
+the script that is supposed to produce it.

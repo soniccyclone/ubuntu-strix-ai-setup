@@ -53,7 +53,9 @@ CONTRACT="${CONTRACT:-http://127.0.0.1:8080}"
 
   podman volume rm -f "$vol" >/dev/null
   [ "$status" -eq 0 ]
-  # The tool call actually happened, and produced the file's contents.
-  [[ "$output" == *"Read notes.txt"* ]]
+  # XYLOPHONE exists only inside notes.txt and cannot be guessed, so its
+  # presence proves a tool call read the file. Deliberately NOT asserting on
+  # opencode's "Read notes.txt" line: that is a rendering detail and the model
+  # is sampled, so which tools it narrates varies between runs.
   [[ "$output" == *"XYLOPHONE"* ]]
 }
