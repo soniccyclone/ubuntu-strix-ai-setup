@@ -7,8 +7,13 @@ set -euo pipefail
 LC=${LC:-$HOME/.local/opt/llama.cpp-vulkan/llama-b10502}
 export LD_LIBRARY_PATH=$LC
 
-if pgrep -f "curl.*\.gguf" >/dev/null; then
-  echo "refusing: a model download is running and will skew the numbers" >&2
+# Match real curl processes by name, not by command-line substring. `pgrep -f`
+# also matches this script's own wrapper and any shell that merely mentions a
+# download, which produced both a phantom refusal and, elsewhere, a pkill that
+# killed its caller.
+if pgrep -x curl >/dev/null; then
+  echo "refusing: curl is running and a download will skew the numbers" >&2
+  pgrep -xa curl >&2
   exit 1
 fi
 

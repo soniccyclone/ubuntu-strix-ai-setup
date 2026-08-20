@@ -633,3 +633,50 @@ The HALO figure is not the 94.79 GiB in its README — that number is a comparis
 row for a different quant. At 96.8 GiB against 108.3 GiB free it leaves roughly
 11.5 GiB for KV cache. It would not have fit at a 96 GiB GTT ceiling, so the
 choice of 110 over 96 turned out to be load-bearing rather than cautious.
+
+## 2026-08-20 — 122B A/B: my prediction was wrong, and the regimes resolve (probe 10)
+
+    lmstudio  Q4_K_M homogeneous   69.10 GiB   215.0 pp512   26.36 tg128
+    Beinsezii q80-q6k_ffn mixed    96.78 GiB   170.0 pp512   19.81 tg128
+
+I predicted the hand-mixed quant would win, on the reasoning that tensor
+placement had beaten raw size all day. It lost by 1.33x on decode. Written down
+because the reasoning was sound and the conclusion still wrong, which is the
+kind that repeats.
+
+### What was actually going on all day
+
+    35B-A3B    3B active    1.66x bytes -> 1.25x slower    sub-linear
+    122B-A10B 10B active    1.40x bytes -> 1.33x slower    proportional
+
+The 35B is compute-bound; the 122B is bandwidth-bound. Active parameters move a
+model across that line. Every result from probe 5 onward fits this without
+special pleading: Q6 to Q8 was free at 3 B active because the shaders were the
+limit, and size costs one-for-one at 10 B active because the memory controller
+is. The IQ-on-DeltaNet penalty is a separate, orthogonal effect about kernel
+quality, and it is still real.
+
+### Two caveats that could overturn the ranking, both unsettled
+
+`llama-bench` never speculates, so the HALO quant's MTP head is dead weight in
+this measurement while still costing bandwidth — its headline feature was
+switched off for the test that judged it. And its author tuned against ROCm
+kernels, not RADV. Neither is a defence of the number; both are reasons the
+number does not generalise past the run.
+
+### Where the deep tier stands
+
+26.36 t/s at 122 B with vision and 262 k native context, on the homogeneous
+plain quant, at 69.10 GiB of 108.3 GiB free. Above the ~21-22 t/s published for
+this model on this silicon. It is a usable deep tier, which before this morning's
+reboot could not be loaded at all.
+
+### Harness fix
+
+`bench.sh` guarded with `pgrep -f "curl.*\.gguf"`, which matched any shell whose
+command line merely mentioned a download — including its own wrapper. It refused
+to run against a leftover script that was not downloading anything but was spin-
+waiting on a marker file I had renamed. Now `pgrep -x curl`, matching real
+processes by name, and it prints what it found so a refusal can be diagnosed
+rather than guessed at. Third instance today of `-f` matching a command line
+that quotes the pattern.
