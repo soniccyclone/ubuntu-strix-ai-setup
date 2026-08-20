@@ -418,3 +418,48 @@ CFG 1.0, LoRA strength 0.85-1.4. That is precisely the "style-trained LoRA so
 the model generates that style natively" his pixel-art plan called for and could
 only find SDXL candidates for. It also puts FLUX.2 klein on both the sprite
 track and the 3D pipeline's image stage — one 4B model serving both.
+
+## 2026-08-20 — Media scope parked as cycle 2, with its preconditions probed
+
+Nathan's calls:
+
+  - The RX 9070 XT is on the LAN but is **not to be depended on**. It is an
+    escape hatch for fast iteration sessions, not a planned tier. Everything is
+    planned to run on Strix Halo alone.
+  - The 22x image-stage gap is chased **first** inside the media cycle, because
+    it decides whether that second machine matters at all.
+  - Media gets its **own necklace cycle, after the agent suite lands**. This
+    spec stays scoped to Code/Cowork/Design over one serving contract.
+  - Pixel art is an **A/B with human eval** — FLUX.2 klein + the Limbicnation
+    LoRA against SDXL + Pixel-Art-XL, same subjects. Same method that produced
+    his SDXL and LTX-2 verdicts.
+
+So spec.md is deliberately not expanded. What follows is the starting state for
+cycle 2, probed today so that cycle does not begin by rediscovering it.
+
+### Preconditions on this box
+
+    podman            5.7.0, rootless
+    podman-compose    ~/.local/bin/podman-compose  (podman's external provider)
+    docker            absent
+    render gid        990
+    video gid         44
+    nathan groups     in neither render nor video
+    free disk         2.5 T
+
+Two of these are load-bearing and neither is obvious.
+
+**The skill wants Docker with Compose; this box has rootless podman.** The
+ComfyUI container in that stack is described as privileged and holding
+`/dev/kfd`, while the mesh engine gets the render node only. Privileged plus
+device passthrough is exactly where rootless podman diverges from Docker. This
+is the first thing cycle 2 should test, before any weights are fetched.
+
+**The `render` and `video` gids here are 990 and 44** — which are, by
+coincidence or convention, the literal values in the skill's `.env.example`. So
+that file is likely usable unedited, but only after the group membership exists.
+
+Membership in `render` is now blocking three separate things: the ROCm leg of
+the agent suite, the ComfyUI container, and the SkinTokens rig service. It is
+one command and a re-login, and it should happen at the same time as the GTT
+boot-argument reboot rather than as its own interruption.
