@@ -594,3 +594,42 @@ Fit is the open risk on the larger one. 94.79 GiB against 108.3 GiB free leaves
 roughly 13 GiB for KV cache; the author claims 100-200 k context depending on
 TTM settings, more with vision disabled. That is measurable rather than
 arguable.
+
+## 2026-08-20 — Three download mistakes worth not repeating
+
+**1. Files over ~50 GB are split by Hugging Face.** The single-file URL for the
+74 GB quant returned a 404 with a 15-byte body, and because the fetch loop only
+checked curl's exit code on a `-sfL` request it retried the same 404 twelve
+times in silence. The real names carry `-00001-of-00002`. My earlier size survey
+had collapsed those suffixes with a regex to total the parts, which is exactly
+how the real filename got lost before it was ever used.
+
+**2. Serialising the downloads was wrong, and Nathan called it.** The reasoning
+was bandwidth contention; the reality is that Hugging Face throttles per
+connection. Measured:
+
+    one stream       2.5 - 17 MB/s
+    five streams   114.6 MB/s  (917 Mbit/s, saturating his gigabit line)
+
+179 GB went from a multi-hour serial fetch to about 25 minutes. The lesson is
+that "don't contend for a shared resource" is only right when the shared
+resource is the bottleneck, and here it never was.
+
+**3. `pkill -f <pattern>` killed the calling shell. Again.** Noted after probe 8
+and repeated within the hour, this time taking an unwritten heredoc with it. The
+wrapper `bash -c '...'` contains the pattern as a literal string, so `-f` matches
+it. Use `pgrep -x curl` and kill by pid.
+
+`repl/fetch-122b.sh` now carries all three fixes: real multipart URLs, five
+parallel streams, and a marker file written only after curl exits clean so a
+truncated file can never look finished to `bench.sh`.
+
+### Actual sizes, corrected
+
+    lmstudio Q4_K_M   40.01 + 34.20      =  74.21 GB   (69.1 GiB)
+    Beinsezii HALO    single file        = 103.93 GB   (96.8 GiB)
+
+The HALO figure is not the 94.79 GiB in its README — that number is a comparison
+row for a different quant. At 96.8 GiB against 108.3 GiB free it leaves roughly
+11.5 GiB for KV cache. It would not have fit at a 96 GiB GTT ceiling, so the
+choice of 110 over 96 turned out to be load-bearing rather than cautious.
