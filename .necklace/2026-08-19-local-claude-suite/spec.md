@@ -91,6 +91,15 @@ decode-bound.
 - 122 GiB total, minus desktop. A large tier and a fast tier cannot both be resident; residency has
   to be scheduled rather than assumed.
 - Wayland/GNOME session. Tauri v2 desktop apps need `libwebkit2gtk-4.1`, which is present.
+- **Everything an agent is allowed to touch during development runs in a rootless podman container
+  with no host filesystem mounted.** Verified today: a container reaches a bare-metal service at
+  `host.containers.internal` and sees an empty `/home`. This is a constraint on how the work is
+  built and tested, not on what is delivered — the delivered configuration is native desktop
+  applications on Nathan's session talking to a bare-metal endpoint. He is not running this suite
+  in containers.
+- The serving contract runs on bare metal, where the GPU and the weights already are. It must be
+  reachable from test containers without being reachable from the LAN, which has a second machine
+  on it.
 
 ## Approach
 
