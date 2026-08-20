@@ -536,3 +536,61 @@ cache at long context. Before the change it was 14 GB short of fitting.
 Three things that were blocked on `render` membership are now unblocked: the
 ROCm build for the coding leg, the ComfyUI container in the media cycle, and the
 SkinTokens rig service.
+
+## 2026-08-20 — 122B deep tier, and a refinement of the quant finding
+
+`Qwen/Qwen3.5-122B-A10B` is **the same hybrid architecture as the 35B**: 12x
+repeating `Gated DeltaNet -> MoE` / `Gated Attention -> MoE`, 256 experts, 8
+routed plus 1 shared, 10 B active, 262 k native context, and a vision encoder
+with an mmproj available. So probe 8's finding applies to it directly, and the
+selection is a plain quant rather than a dynamic one.
+
+Two candidates pulling:
+
+    lmstudio-community  Q4_K_M homogeneous plain          74.21 GB
+    Beinsezii           q80-q6k_ffn, hand-mixed for Halo  94.79 GiB, with MTP
+
+### The HALO quant refines rather than contradicts probe 8
+
+It is a *mixed* quant, which on the face of it is the thing probe 8 warned
+against. Its `tensor_types.txt` says otherwise:
+
+    .          = Q8_0     attention, embeddings
+    ffn        = Q6_K
+    shexp      = Q8_0     shared expert
+    nextn      = Q8_0     MTP head
+    ssm_alpha  = F32
+    ssm_beta   = F32
+
+Zero IQ-family tensors, and the DeltaNet state-space parameters left at **F32**
+— untouched by quantisation entirely. That is precisely the path probe 6 and
+probe 8 identified as the expensive one on RADV, and the author appears to have
+reached the same conclusion independently and answered it by declining to
+quantise there.
+
+So the rule stated in probe 8 was too coarse. Corrected:
+
+    wrong:  mixed quants are slow on RADV
+    right:  IQ-family types on DeltaNet-path tensors are slow on RADV
+
+Mixing is fine, and may be better than homogeneous, as long as every type used
+has a good kernel and the SSM parameters are left alone. Unsloth's UD scheme
+substitutes IQ types by bit-budget without regard for which path a tensor sits
+in; this one is hand-placed with the architecture in mind.
+
+The author's published numbers are ROCm, not Vulkan: pp2048 275.0, tg256 16.62,
+and holding 16.68 tg at 8 k depth. Worth noting that decode barely moves with
+context depth there, which is what the linear-attention layers are supposed to
+buy.
+
+### The A/B this sets up
+
+Homogeneous-plain against hand-mixed-plain, both on Vulkan, same harness. It
+tests whether the refinement above is real: if the 94.79 GiB mixed quant beats
+the 74.21 GB homogeneous one on decode, then tensor placement matters more than
+total size, which is the strongest form of today's lesson.
+
+Fit is the open risk on the larger one. 94.79 GiB against 108.3 GiB free leaves
+roughly 13 GiB for KV cache; the author claims 100-200 k context depending on
+TTM settings, more with vision disabled. That is measurable rather than
+arguable.
