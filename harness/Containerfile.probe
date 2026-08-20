@@ -1,0 +1,7 @@
+# Minimal probe image for the isolation tests.
+# Tools are baked in because the agent network has no route to a package
+# mirror by design — `apk add` at run time would fail, and a test that needs
+# the network to prove the network is closed is not a test.
+FROM docker.io/library/alpine:3.22
+RUN apk add --no-cache curl jq socat bash
+CMD ["/bin/bash"]
