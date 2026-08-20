@@ -751,3 +751,62 @@ plausibly about a blank one.
 Nothing is blocked. `spec.md` carries no unresolved judgment question — the
 backend choice was settled and deferred, and the media pipeline is a separate
 cycle rather than an open question in this one.
+
+## 2026-08-20 — Containerised evaluation, and a redesign I nearly did by mistake
+
+Nathan: everything must be containerised with no filesystem carry-over, because
+he does not want an AI of unknown capability pointed at his real files while we
+are still finding out what it can do.
+
+My first move was to start redesigning the delivered architecture around
+containers — GUI apps over VNC, models mounted read-only, rootless GPU
+passthrough. Two follow-ups from him corrected it:
+
+  - The inference server runs on **bare metal**. Only the apps and tests are
+    containerised. That deletes the hardest technical risk outright, since
+    rootless podman holding `/dev/kfd` was the thing I had flagged as most
+    likely to fail.
+  - "This is only for your own testing, do not design this as if I will be using
+    it containerized." The containers are the **harness**, not the product. He
+    runs native desktop applications against a bare-metal endpoint.
+
+So the delivered design did not change at all. What changed is a constraint on
+how the work is built and tested. Recorded because I was one step from spending
+the session redesigning something nobody asked to be redesigned.
+
+### Preconditions verified before designing anything
+
+    host.containers.internal:18080 -> HTTP 200    rootless, default pasta network
+    /home entries: 0                              no host home visible
+
+Both from a stock `alpine` container with no flags. Container-to-bare-metal
+works and isolation holds without any configuration.
+
+### Decisions
+
+  - **GUI legs are tested headless.** goose through its published image
+    `ghcr.io/aaif-goose/goose`, configured entirely by environment variables;
+    OpenPencil through `@open-pencil/cli` and its web build served from a
+    container. Nathan uses the real desktop apps. The tests therefore prove the
+    contract and the agent loop, not the desktop binary, and `cuj.md` says so
+    rather than implying more coverage than exists.
+  - **llama-swap over Lemonade.** He raised Lemonade, which he ran before on
+    port 13305. llama-swap wins on two counts that matter here: it serves the
+    Anthropic `/v1/messages` shape as well as OpenAI, and it takes a per-model
+    launch command, so the exact llama.cpp build and flags behind 811/59.6 and
+    215/26.4 are pinned rather than abstracted. Lemonade's real advantage is the
+    XDNA2 NPU, which llama.cpp cannot use anyway.
+  - **Named volumes, inspected in place.** I proposed `podman cp`; he pointed
+    out that attaching a second container to the same volume is simpler and
+    copies nothing. He is right.
+
+### CUJ-09 added
+
+The isolation boundary is now something someone has to be able to observe, so it
+gets a slice rather than living as a footnote: no bind mounts declared, no host
+home visible, the contract refusing the LAN while answering test containers, and
+a work volume outliving its container and being readable by another.
+
+That third test is the one worth having. Binding the contract somewhere test
+containers can reach it is the easy thing to get wrong in the direction of
+binding `0.0.0.0`, and there is a second machine on this LAN.
