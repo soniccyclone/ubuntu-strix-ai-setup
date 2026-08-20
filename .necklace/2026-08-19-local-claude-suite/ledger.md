@@ -463,3 +463,31 @@ Membership in `render` is now blocking three separate things: the ROCm leg of
 the agent suite, the ComfyUI container, and the SkinTokens rig service. It is
 one command and a re-login, and it should happen at the same time as the GTT
 boot-argument reboot rather than as its own interruption.
+
+## 2026-08-20 — GTT change written down properly
+
+Nathan asked whether the exact commands had reached the ledger before he
+rebooted. They had not — they existed only in chat. That is precisely the
+failure mode the ledger exists to prevent, and it would have cost the rollback
+path at the moment it was needed.
+
+Full procedure now in **`repl/gtt-change.md`**: measured before-state, the BIOS
+check (verify, do not change — the carve-out is already at the 512 MiB minimum
+and raising it would be actively wrong on Linux), the exact commands, a
+verify-before-reboot step, a verify-after-reboot step, and rollback for both the
+boots-but-broken and does-not-boot cases.
+
+Target is 110 GiB: `amdgpu.gttsize=112640` (MiB) and `ttm.pages_limit=28835840`
+(4 KiB pages). The two units differ and must agree or the lower silently wins.
+110 leaves 12.8 GiB for the OS; 120 would leave 2.8 and risks the GPU squeezing
+userspace into OOM.
+
+Nothing has been executed. Every command is Nathan's to run — this session
+cannot escalate.
+
+### Rule this establishes for the rest of the work
+
+A command that changes machine state gets written to the planning directory
+**before** it is handed over, not after it is run. Chat is not durable; the
+rollback is worth more than the change and is needed at exactly the moment the
+chat is unreachable.
