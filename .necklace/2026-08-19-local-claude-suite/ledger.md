@@ -963,3 +963,62 @@ and `${vol}` are identical to grep and only one is a host path. It now runs
 `podman inspect` against a live proxy and a live agent container, asserting the
 proxy has exactly one bind and the agent has none. Checking reality instead of
 the script that is supposed to produce it.
+
+## 2026-08-20 — Findings from finishing the beads
+
+**Tool-call reliability, measured at last.** The spec called this the open risk
+and said no throughput number predicts it. It does not, and here is the number:
+
+    "Read notes.txt and tell me the secret word."                    3 of 6
+    "Use the read tool on the relative path notes.txt
+     (do not use an absolute path) ..."                              6 of 6
+
+The failure is specific, not general flailing: the model emits an **absolute**
+path, `/notes.txt`, which opencode's permission layer correctly refuses as
+outside the project. It is prompt sensitivity in path handling, not broken tool
+calling. Worth knowing before UAT, because the obvious phrasing is the one that
+fails half the time.
+
+**Two flakes found only by running the suite twice.** Both were my assertions,
+not the system:
+
+  - The vision test asserted the word "magenta" for `#FF00FF`. The model said
+    "pink" on two runs of three and "magenta" on the other. Both are correct
+    for that colour; the test was asserting on wording, which is taste. Fixture
+    changed to pure red, which has one stable name, and the assertion accepts a
+    synonym set. Stable over three consecutive runs and two full-suite runs.
+  - The opencode test asserted opencode's `Read notes.txt` narration line. That
+    is a rendering detail of a sampled model's tool choice. It now asserts only
+    on XYLOPHONE, which exists nowhere but inside the file.
+
+Both are the same mistake in different clothes: asserting on how the model
+phrases something rather than on a fact only a working system can produce.
+
+**Round-trip does not preserve node count, and should not.** OpenPencil takes
+3 nodes (1 FRAME, 2 TEXT) out to standalone HTML and brings back 6 (4 FRAME,
+2 TEXT), wrapped in `op-stage` / `op-N` frames. Text and addressability
+survive; layout structure is re-nested. The CUJ test said "preserves node count
+and text", which was a requirement I invented. Renamed to "preserves text and
+addressability" and the assertion now checks the text-node count and the
+presence of the stage wrapper.
+
+**Upstream packaging bug in every `@open-pencil/*` package at 0.14.0.** Their
+`exports` maps declare a `"bun"` condition pointing at `./src/**.ts`, but only
+`dist/` is published. Under Bun that resolves to nothing (`Cannot find module
+'@open-pencil/mcp/discovery'`, then `'@open-pencil/core/bytes'`, and onward);
+under Node the CLI dies earlier on `Bun.file()`. The published packages only
+work inside their own monorepo. The harness strips every `"bun"` condition at
+image build so resolution falls through to the shipped `dist/*.mjs`. Worth
+reporting upstream; noted here so the workaround is not mistaken for a
+preference.
+
+**`pkill -f` cost this project five separate incidents**, three of which killed
+the calling shell because the wrapper `bash -c '...'` contains the pattern as a
+literal string, and two of which were false positives in the benchmark guard.
+It is now banned in this project: match by process name with `pgrep -x`, then
+filter on `/proc/<pid>/cmdline` if more precision is needed.
+
+**goose has a server mode I missed during planning.** `goose serve` runs an ACP
+server over HTTP and WebSocket. The CUJ document assumed CLI-only for the
+headless path and treated the GUI as out of reach without a display. If the GUI
+leg is revisited, that is the seam to look at first.

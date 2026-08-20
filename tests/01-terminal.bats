@@ -49,10 +49,19 @@ CONTRACT="${CONTRACT:-http://127.0.0.1:8080}"
 
   run timeout 900 podman run --rm --network=suite-net -v "${vol}:/work" -w /work \
       localhost/suite-opencode \
-      opencode run --model contract/fast "Read notes.txt and tell me the secret word."
+      opencode run --model contract/fast \
+      "Use the read tool on the relative path notes.txt (do not use an absolute path) and tell me the secret word."
 
   podman volume rm -f "$vol" >/dev/null
   [ "$status" -eq 0 ]
+  # The prompt names the relative path explicitly, and it has to. With the
+  # obvious wording ("Read notes.txt and tell me the secret word") this model
+  # emits an ABSOLUTE path -- /notes.txt -- roughly half the time, which
+  # opencode's permission layer correctly refuses as outside the project.
+  # Measured: 3 of 6 with the vague prompt, 6 of 6 with this one. That is a
+  # prompt-sensitivity characteristic of the model, not a defect in the
+  # plumbing, and this test exists to prove the plumbing.
+  #
   # XYLOPHONE exists only inside notes.txt and cannot be guessed, so its
   # presence proves a tool call read the file. Deliberately NOT asserting on
   # opencode's "Read notes.txt" line: that is a rendering detail and the model

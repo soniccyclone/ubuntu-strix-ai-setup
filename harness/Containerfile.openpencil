@@ -1,0 +1,40 @@
+# OpenPencil CLI container.
+#
+# MUST be Bun, not Node. The published CLI calls Bun.file() directly and dies
+# with "Bun is not defined" under node, despite installing cleanly from npm.
+# The repo ships bun.lock and bunfig.toml, which is the tell.
+#
+# The desktop build is Tauri and needs a display; this harness has none on
+# purpose. The CLI drives the same document engine without one. Nathan uses
+# the desktop app natively.
+FROM docker.io/oven/bun:1-alpine
+RUN apk add --no-cache curl jq bash
+# The CLI does not declare @open-pencil/mcp, but requires it at run time.
+RUN bun add -g @open-pencil/cli@0.14.0 @open-pencil/mcp
+# Upstream packaging bug across every @open-pencil/* package at 0.14.0: their
+# exports maps declare a "bun" condition pointing at ./src/**.ts, but only
+# dist/ is published. Bun prefers that condition, finds nothing, and the CLI
+# dies with "Cannot find module '@open-pencil/mcp/discovery'", then
+# '@open-pencil/core/bytes', and so on. Node fails earlier and differently, on
+# Bun.file(). The published packages only work inside their own monorepo.
+#
+# Strip every "bun" condition so resolution falls through to "import", which
+# points at the dist/*.mjs that IS shipped.
+RUN for M in /root/.bun/install/global/node_modules/@open-pencil/*; do \
+      [ -f "$M/package.json" ] || continue; \
+      bun -e 'const f=process.argv[1]+"/package.json";const fs=require("fs");\
+        const p=JSON.parse(fs.readFileSync(f,"utf8"));\
+        const strip=(o)=>{if(o&&typeof o==="object"){delete o.bun;for(const k of Object.keys(o))strip(o[k]);}};\
+        strip(p.exports); fs.writeFileSync(f,JSON.stringify(p,null,2));' "$M"; \
+    done
+
+ENV PATH=/root/.bun/bin:$PATH
+# Globally-installed deps (zod, via @ai-sdk/openai) are not on bun's default
+# resolution path for a script outside the install root.
+ENV NODE_PATH=/root/.bun/install/global/node_modules
+# The AI SDK OpenPencil itself uses, for the provider-seam probe.
+RUN bun add -g @ai-sdk/openai ai
+COPY openpencil-ai-probe.mjs /opt/ai-probe.mjs
+
+WORKDIR /work
+CMD ["/bin/bash"]
