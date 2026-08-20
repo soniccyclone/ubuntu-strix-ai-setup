@@ -220,3 +220,39 @@ which is a different default from the one everyone assumes.
 Every run shows a long low-utilisation head (7-10%) before the ramp to 97-98%.
 That is the model being read off NVMe into page cache, not the benchmark. Worth
 knowing before someone reads a utilisation trace and concludes the GPU is idle.
+
+## 2026-08-19 — Q8_0 flattens the curve (probe 7)
+
+    Qwen3.6-35B-A3B   Q4_K_XL   20.81 GiB    322 pp512    25.9 tg128
+    Qwen3.6-35B-A3B   Q6_K      29.65 GiB    641 pp512    46.6 tg128
+    Qwen3.6-35B-A3B   Q8_0      34.36 GiB    705 pp512    46.3 tg128
+
+Q6 to Q8 is 16% more bytes per token for zero decode cost, and 10% *better*
+prefill. A bandwidth-bound decode would have lost 16%. This is the clean proof;
+probe 6 was the surprise, this is the confirmation.
+
+Ranking on RADV for this model: **Q8_0 >= Q6_K >> Q4_K_XL**. Q8_0 is a uniform
+8-bit block format with a trivial dequant path, which is presumably why it beats
+the more elaborate Q6_K at prefill despite being larger.
+
+Practical upshot: run the near-lossless quant. 34.36 GiB of 122, at full speed.
+The universal advice — quantise hard so it fits and so it runs fast — is exactly
+backwards on this hardware, and only measurement showed it.
+
+### The ambiguity this leaves, and why it changes the advice
+
+The slow file is unsloth's `UD-Q4_K_XL`. Unsloth's Ultra Dynamic quants mix
+tensor types, putting IQ-family types on some tensors. llama-bench reports the
+file as "Q4_K - Medium", which is its read of the dominant type, not proof that
+every tensor is Q4_K.
+
+So two different lessons are still consistent with the data:
+
+  A. Q4_K is a poor kernel on RADV        -> avoid Q4_K, any packager
+  B. the mixed IQ tensors are the problem -> avoid dynamic mixed quants on RADV,
+                                             plain Q4_K is fine
+
+These give opposite advice about a plain Q4_K_M file. Downloading bartowski's
+`Qwen_Qwen3.6-35B-A3B-Q4_K_M.gguf` (22.29 GB), which is a conventional
+non-dynamic quant of the same model, to settle it. If it lands near 25 t/s the
+answer is A; near 46 t/s and the answer is B.
