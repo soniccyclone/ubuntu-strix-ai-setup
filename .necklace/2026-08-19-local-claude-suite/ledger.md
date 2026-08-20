@@ -866,3 +866,49 @@ names tests and nothing else, as the template requires.
 The underlying scope cut still stands — tests stay mechanical, taste stays with
 Nathan. What changed is where the boundary sits in time, not what is on either
 side of it.
+
+## 2026-08-20 — Implementation notes from the beads stage
+
+**Egress isolation is structural, not a rule.** Agents sit on `suite-net`, a
+podman network created `--internal`, which has no route off the box at all. One
+container — `contract-proxy` — is attached to both `suite-net` and the default
+network, and forwards a single port. Nothing else spans the boundary. Measured
+from an agent container: proxy 200, `1.1.1.1` refused, `host.containers.internal`
+refused, `huggingface.co` refused, `/home` empty.
+
+**The bind address was decided by measurement, not preference.**
+
+    host service on 127.0.0.1  ->  container 000
+    host service on 0.0.0.0    ->  container 200
+    host.containers.internal   =   169.254.1.2 under pasta
+
+`--network=pasta:--map-host-loopback,169.254.1.2` does reach a loopback-bound
+service, but `cannot set multiple networks without bridge network mode` — pasta
+and a bridge are mutually exclusive, and the agents need the internal bridge.
+So llama-swap binds `0.0.0.0` and the LAN is closed with ufw, which becomes the
+third entry in `docs/privileged-steps.md`. Handed to Nathan, not run.
+
+**Two hours lost to a hung test runner, and it was not the tests.** Every
+isolation test produced the correct verdict and bats never exited: `rc=124` on a
+90 s timeout with `1 ok / 0 fail` printed. `podman run -d` leaves a conmon
+process that inherits whatever stdout it was given, and under bats that holds
+the runner's pipe open forever. Redirecting all three descriptors on the podman
+invocation was not enough. The fix that worked was structural: `make test`
+brings the harness up, and `setup_file` only asserts it is there. Setup is
+orchestration, not a test concern.
+
+**Qwen3.6 thinks before it answers, and nothing in the benchmarks showed it.**
+A request for the eleven-token string "CONTRACT OK" consumed 159 completion
+tokens; at 60 max_tokens it returned `finish_reason: length` having emitted only
+reasoning. The Anthropic shape correctly renders this as `[thinking, text]`
+content blocks. At 59.6 t/s that is ~2.7 s of latency before a trivial answer,
+and in an agent loop it is a tax on every turn. Throughput measured the model;
+this measures the model as configured, and they are not the same number. Whether
+thinking can be turned off per request is worth finding out before the roster is
+called settled.
+
+**Dependency correction.** The CUJ document implied CUJ-01 needed the container
+harness. Only half of it does: llama-swap on bare metal has no container
+dependency, while CUJ-09's LAN test needs a real contract to dial. The
+epic-level edge was replaced with two child-level ones, and the ordering
+inverted from what `cuj.md` assumed.
