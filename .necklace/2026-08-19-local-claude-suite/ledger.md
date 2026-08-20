@@ -256,3 +256,58 @@ These give opposite advice about a plain Q4_K_M file. Downloading bartowski's
 `Qwen_Qwen3.6-35B-A3B-Q4_K_M.gguf` (22.29 GB), which is a conventional
 non-dynamic quant of the same model, to settle it. If it lands near 25 t/s the
 answer is A; near 46 t/s and the answer is B.
+
+## 2026-08-19 — The packager was the variable all along (probe 8)
+
+bartowski's plain `Q4_K_M`, same model, same quant family, non-dynamic:
+
+    Qwen3.6-35B-A3B  UD-Q4_K_XL (unsloth)    20.81 GiB    322 pp512    25.9 tg128
+    Qwen3.6-35B-A3B  Q4_K_M     (bartowski)  20.74 GiB    707 pp512    58.0 tg128
+
+Answer is B. Identical size, 2.24x apart on decode and 2.20x on prefill. The
+penalty is unsloth's Ultra Dynamic packaging — the IQ-family tensors it mixes in
+— not Q4_K. And plain Q4_K_M is now the fastest thing measured on this model,
+ahead of both Q6_K and Q8_0.
+
+Full picture for Qwen3.6-35B-A3B on RADV / b10502:
+
+    Q4_K_M     plain     20.74 GiB    707 pp    58.0 tg
+    Q8_0       plain     34.36 GiB    705 pp    46.3 tg
+    Q6_K       plain     29.65 GiB    641 pp    46.6 tg
+    UD-Q4_K_XL dynamic   20.81 GiB    322 pp    25.9 tg
+
+### Correcting probe 7's conclusion
+
+Probe 7 concluded "Q4 is strictly dominated, run Q8_0." That was drawn from the
+UD file alone and it is wrong. Stated to Nathan before this probe ran, so it is
+worth being explicit about what replaces it.
+
+The regime is mixed, not uniformly compute-bound:
+
+  - Q6 -> Q8 : 16% more bytes, 0% slower. Fully compute-bound. Size is free.
+  - Q4 -> Q6 : 43% more bytes, 20% slower. Partly bandwidth-sensitive.
+  - dynamic quants: 2.2x penalty at any size. A packaging artifact, not physics.
+
+So the crossover sits near Q6. Below it, size still costs something; above it,
+nothing. Revised advice: plain Q4_K_M for throughput, Q8_0 for near-lossless
+quality at 80% of that throughput, and never a dynamic mixed quant on this
+driver.
+
+### What it does to the architecture comparison
+
+The 3.0x architecture gap in probe 6 was measured UD-against-UD, so it is still
+apples-to-apples and still real. But the *roster* conclusion drawn from it is
+now suspect. Qwen3.6-35B-A3B on a plain quant does 58.0 t/s — with vision, a
+262k context, and much stronger reasoning — against Qwen3-Coder-30B-A3B's 78.6
+on a UD quant that we now know is penalised.
+
+I told Nathan his daily driver was probably the older conventional model. That
+may well be wrong, and his original instinct about Qwen3.6 right. Downloading
+lmstudio-community's plain `Q4_K_M` of the coder (18.63 GB) so the comparison is
+plain-against-plain. If the coder gains the same ~2.2x it stays far ahead; if it
+gains little, the two are close and Qwen3.6 wins the roster on capability.
+
+Also noted: `pkill -f "Qwen_Qwen3-Coder"` killed the calling shell, because the
+pattern matched the wrapper `bash -c` that contained it. Same self-match that
+made `pgrep -f curl.*gguf` report phantom downloads twice today. `-f` matches
+full command lines including one's own.
