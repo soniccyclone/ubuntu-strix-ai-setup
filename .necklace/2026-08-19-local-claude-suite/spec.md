@@ -119,14 +119,17 @@ role. Each is pointed at the contract and configured with role names. All three 
 base URL against an OpenAI- or Anthropic-shaped endpoint, which was confirmed by reading their
 provider code rather than their documentation.
 
-The roster is chosen by measurement, because the third finding says the things normally used to
-choose — parameter count, file size, quant level — predict the wrong direction on this hardware.
-Every candidate is measured across the combinations that plausibly matter before any role is
-assigned, and the numbers are committed next to the config that uses them. Two consequences follow
-that a reader should expect to see honoured: a conventional-attention model that decodes faster
-takes the interactive roles over a newer hybrid that scores better on paper, and a quant is picked
-for its measured throughput rather than for being small. On a 122 GiB box, where a larger quant
-measures faster it is strictly better and there is no tradeoff to weigh.
+The roster is chosen by measuring files, not by reading model cards, because every quantity
+normally used to choose — parameter count, file size, quant level, benchmark score — pointed the
+wrong direction at least once during this investigation. A candidate earns a role by being run in
+the configuration it would actually be served in, and its numbers are committed beside the config
+that names it. The measurement is not a precaution taken before a decision already made; it is the
+decision, and three of the conclusions reached on the way to this document were overturned by the
+next run.
+
+Throughput is a floor, not the ranking. Once a candidate clears the interactive threshold, capability
+decides the role — a model that decodes 20% slower but carries vision, a long context, and stronger
+reasoning takes the seat over a faster one that carries none of them.
 
 The layering is the point. OpenPencil is six months old and goose is young; the proxy and llama.cpp
 are not. When a frontend is replaced, the contract does not move.
