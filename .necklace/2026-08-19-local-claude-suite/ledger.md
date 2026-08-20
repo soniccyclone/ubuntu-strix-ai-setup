@@ -311,3 +311,110 @@ Also noted: `pkill -f "Qwen_Qwen3-Coder"` killed the calling shell, because the
 pattern matched the wrapper `bash -c` that contained it. Same self-match that
 made `pgrep -f curl.*gguf` report phantom downloads twice today. `-f` matches
 full command lines including one's own.
+
+## 2026-08-20 — Prior art recovered, and scope opens to media generation
+
+Nathan pointed at `soniccyclone/zoysia-wsl-scratch`. The ComfyUI work is not
+there — it is in `soniccyclone/zoysia-windows-scratch` under
+`strix-halo-media-ai/`, deleted in `6cd87ac "Cancel all LLM image gen because it
+is not useful for game asset generation"` and recovered from `6cd87ac~1`.
+
+What the wsl-scratch repo does carry: a Lemonade Server endpoint on port 13305
+serving `gpt-oss-120b-mxfp4-fixed`, and a vision-input plan. Both worth knowing;
+neither is image generation.
+
+### His own findings, which the plan should not re-derive
+
+Measured on this exact chip, native Windows, AMD's tuned `comfy-kitchen` HIP
+backend, torch 2.11.0+rocm7.13.0, fp8:
+
+    Qwen-Image 20B, 4-step, 1328x1328   cold 124.7 s   warm 36.6-38.6 s
+                                        sampler ~6.4 s/it
+    LTX-2 19B video, 832x480, 49 frames cold 212 s     warm ~90-100 s
+
+Verdicts he reached by human eval, not metric:
+
+  - **Pixel art: SDXL + Pixel-Art-XL beat Qwen-Image on quality AND speed.**
+    A small style-trained specialist beats a large generalist for a narrow
+    style. He notes this is the inverse of the general image/edit case.
+  - **Video: LTX-2 beat Wan 2.2** on composition, motion, prompt adherence,
+    and it is faster and carries audio.
+  - **Hard principle: style is generated, never post-applied.** The NES-lock
+    workflow was deleted. Mechanical Floyd-Steinberg carpet-bombs dithering
+    uniformly, which is the opposite of deliberate placement. The only legal
+    post-step is grid recovery of pixels the model already composed.
+
+And, independently of my probe 5-8 work: "**Compute-bound, not load-bound.**
+warm ~= cold on every workflow. VRAM = capacity, not speed." Two unrelated
+workloads, same conclusion about this machine.
+
+### The blocker that no longer exists
+
+`200f4c3 Verify 3D tool needs /dev/kfd: WSL2 gives /dev/dxg, needs bare-metal
+Linux`. The 3D tool was shelved because Docker Desktop on WSL2 exposes
+`/dev/dxg` and not `/dev/kfd`. Probe 1 found `/dev/kfd` present on this box. The
+reason it was abandoned is gone; only the `render` group membership remains, and
+that is already on the list for the ROCm leg.
+
+### hec-ovi/text-to-3D-skill
+
+Built for gfx1151 specifically. FLUX.2 klein through ComfyUI on ROCm produces a
+reference image, a trimmed C++/GGML TRELLIS.2 fork runs Vulkan-only for the
+mesh, SkinTokens rigs humanoids on ROCm. No Blender, no CUDA. The two stacks
+talk over HTTP (`T2M_ENGINE=http://host.docker.internal:8189`) and are, in the
+author's words, separate projects on purpose — so the seam between image and
+mesh is a URL, not a shared process.
+
+Its published timings on a box like this one:
+
+    harness cold 853 s     harness warm 38 s
+    image 1024 square, FLUX.2 klein, 4 steps        514.6 s
+    mesh res 1024, 12K faces, warm                  345.3 s
+    mesh res 1024, 12K faces, image model resident 1084.4 s
+    rig 11,168 vertices                              13.0 s
+
+### The contradiction worth chasing before buying hardware
+
+The author flags the image stage as the surprise: four steps of a distilled 4B
+model taking eight and a half minutes. But Nathan measured 20B Qwen-Image at
+1328x1328 — 1.68x the pixels, 5x the parameters — in 38 s warm on the same
+silicon. Per pixel per step that is roughly **22x apart**.
+
+A 4B model cannot legitimately be 22x slower per pixel than a 20B one on the
+same chip. The difference is configuration, and the visible candidates are that
+Nathan ran AMD's tuned `comfy-kitchen` HIP backend at fp8 while the skill runs
+stock ComfyUI in a ROCm container, plus klein carrying a Qwen3-4B text encoder
+that may be reloading per run.
+
+This matters because it decides a hardware question. If the image stage is
+fixable to Nathan's rate, a character run drops from ~15 min to ~7 min on this
+box alone and the second machine is unnecessary for 3D. If it is not, the image
+stage belongs on the RX 9070 XT.
+
+### RX 9070 XT, what is actually known
+
+AMD's published RDNA4 figure (R9700, 32 GB, gfx1201, ROCm 7.1): SDXL 1024x1024,
+20 steps, 4.6 it/s. Normalising Nathan's 6.4 s/it for the 7.7x parameter gap
+between Qwen-Image and SDXL puts this box near 0.83 s/it for an SDXL-class
+model. So RDNA4 is roughly **4x** faster for diffusion, consistent with the raw
+FP16 ratio.
+
+The 16 GB cap, not the speed, is what decides placement:
+
+    fits  SDXL + Pixel-Art-XL       ~7 GB     4x faster there
+    fits  FLUX.2 klein 4B + TE fp8  ~8 GB     4x faster there
+    no    Qwen-Image 20B fp8       ~20 GB
+    no    LTX-2 19B video          ~19 GB
+    no    TRELLIS.2 GGUF set    ~16-20 GB
+
+Unverified: whether that machine runs Linux, and whether it is on this LAN. Both
+are questions for Nathan; neither is answerable from here.
+
+### New in the field since his Aug-11 analysis
+
+`Limbicnation/pixel-art-lora` is a rank-64 LoRA on FLUX.2-klein-4B, Apache 2.0,
+trained on 500 CC0 images. 512x512 RGBA with transparent backgrounds, 4 steps,
+CFG 1.0, LoRA strength 0.85-1.4. That is precisely the "style-trained LoRA so
+the model generates that style natively" his pixel-art plan called for and could
+only find SDXL candidates for. It also puts FLUX.2 klein on both the sprite
+track and the 3D pipeline's image stage — one 4B model serving both.
