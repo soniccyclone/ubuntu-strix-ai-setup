@@ -34,9 +34,12 @@ itself in seconds and needs no test. An agent reaching the host filesystem, or
 the contract binding to the LAN, is invisible until it matters — so CUJ-09 is
 tested hard and everything else gets a smoke test.
 
-Every CUJ carries a **Nathan validates** line naming what only he can judge. A
-CUJ whose tests pass is *plumbed*, not *done*; it is done when he has used it
-and said it is worth keeping.
+**This necklace is complete when the tests pass and the suite is ready to hand
+over.** UAT comes after that, not inside it. Every CUJ carries a **UAT covers**
+line describing what Nathan will judge once it is in his hands — that is a
+handoff note, not a completion criterion, and nothing in this document waits on
+it. Whatever he finds in UAT becomes its own necklace: `necklace-tweak` for
+small corrections, a new cycle for anything larger.
 
 ---
 
@@ -56,8 +59,8 @@ and said it is worth keeping.
 | `contract answers both API shapes on one port` | the same prompt to `/v1/chat/completions` and to `/v1/messages` | both return a completion; neither 404s | llama-swap documents both; opencode speaks one and OpenPencil can speak the other |
 | `opencode reaches the contract and completes one tool call` | opencode in a container, pointed at the contract, asked to read one file in its volume | the file's contents appear in the response and the run exits 0 | this is a smoke test for the wiring, not a judgement of the agent |
 
-**Nathan validates:** whether the model is actually useful for his work — whether it
-holds a multi-turn loop, makes edits he'd keep, and is fast enough to stay in.
+**UAT covers:** whether the model is actually useful for his work — whether it holds
+a multi-turn loop, makes edits he would keep, and is fast enough to stay in.
 
 **Done when:** the two tests above pass. Both must be red when created.
 
@@ -81,9 +84,8 @@ holds a multi-turn loop, makes edits he'd keep, and is fast enough to stay in.
 | `agent runs from environment configuration alone` | `ghcr.io/aaif-goose/goose` given only a provider, a base URL and a role name | a request arrives at the contract naming that role; no model path appears in its config | REPL: goose's published image is configured entirely by environment variables |
 | `agent writes nothing outside its workspace volume` | a task whose wording invites writing to a sibling path outside the workspace | no path outside the volume is created or modified | the container makes a failure survivable; this is the one failure mode worth catching mechanically |
 
-**Nathan validates:** whether a GUI agent on a local model is pleasant enough to
-reach for instead of a terminal, and whether its confirmation prompts land in the
-right places.
+**UAT covers:** whether a GUI agent on a local model is pleasant enough to reach for
+instead of a terminal, and whether its confirmation prompts land in the right places.
 
 **Done when:** the two tests above pass. Both must be red when created.
 
@@ -109,9 +111,8 @@ right places.
 | `web build reaches the contract on the OpenAI shape` | OpenPencil's web build in a container with a base URL and a role name | a request arrives at the contract and a response returns | REPL: `compatible.ts` takes a `baseURL` for both adapters, but the browser build fails CORS on the *Anthropic* shape while the Tauri build does not. Nathan's native app may use either; this covers only one |
 | `export and reimport preserves node count and text` | `@open-pencil/cli` in a container: `export -f html --css tailwind`, then `import` | the reimported document has the same node count and the same text content | the round-trip is what replaces Claude Design's handoff, and the CLI exercises it without a display |
 
-**Nathan validates:** whether a local model can produce a layout worth editing
-rather than worth deleting, and whether the round-trip preserves anything he cares
-about.
+**UAT covers:** whether a local model can produce a layout worth editing rather than
+worth deleting, and whether the round-trip preserves anything he cares about.
 
 **Done when:** the two tests above pass. Both must be red when created.
 
@@ -137,8 +138,8 @@ about.
 | `an unknown role fails loudly` | a request naming a role absent from the roster | a 4xx naming the unknown role; no fallback model is loaded | fail fast over fail silently |
 | `an idle role releases its memory` | two roles requested in turn that do not fit together, with a TTL shorter than the gap | GTT in use falls after the TTL and the second request succeeds | REPL: 108.3 GiB free; 69.10 + 20.74 GiB fits, larger pairs will not |
 
-**Nathan validates:** whether swapping a model is quick enough in practice that he
-actually does it rather than living with the wrong one.
+**UAT covers:** whether swapping a model is quick enough in practice that he actually
+does it rather than living with the wrong one.
 
 **Done when:** the three tests above pass. All must be red when created.
 
@@ -163,8 +164,8 @@ actually does it rather than living with the wrong one.
 | `vision role reads a word out of an image` | a generated PNG containing one specific short word in large type | the response contains that word | a loaded-but-unwired mmproj answers plausibly about a blank image, so "describe this" would prove nothing |
 | `a text-only role refuses an image` | the same image sent to a role whose model has no mmproj | an error naming the limitation, not a confident answer about an image it cannot see | a silent wrong answer is the worst outcome here |
 
-**Nathan validates:** whether the vision quality is good enough to be worth using
-on real screenshots.
+**UAT covers:** whether the vision quality is good enough to be worth using on real
+screenshots.
 
 **Done when:** the two tests above pass. Both must be red when created.
 
@@ -189,8 +190,8 @@ on real screenshots.
 | `harness refuses to measure while a download runs` | the harness invoked with a `curl` process live | exits non-zero, prints what it found, emits no timing row | REPL: a phantom refusal cost an hour; `pgrep -f` matched its own wrapper, now `pgrep -x curl` |
 | `every recorded row names build, packager, quant and size` | the committed results record | no row is identified by size alone | REPL: two files of identical size differed 2.24x by packager |
 
-**Nathan validates:** nothing. This one is for whoever comes next, and the tests are
-the whole of it.
+**UAT covers:** nothing. This one is for whoever comes next, and the tests are the
+whole of it.
 
 **Done when:** the two tests above pass. Both must be red when created.
 
@@ -212,7 +213,7 @@ the whole of it.
 | --- | --- | --- | --- |
 | `every privileged step has a recorded rollback` | the recorded procedures | each root command is paired with one that undoes it, and is marked as handed to Nathan rather than executed | REPL: the GTT commands existed only in chat until Nathan asked for them; that is exactly where a rollback gets lost |
 
-**Nathan validates:** nothing.
+**UAT covers:** nothing.
 
 **Done when:** the test above passes. It must be red when created.
 
@@ -236,8 +237,8 @@ the whole of it.
 | `the configured ceiling survives a reboot` | the running system after a boot | GTT total reads the configured ceiling; the VRAM carve-out is still 512 MiB | REPL probe 9: 61.41 -> 110.00 GiB with the carve-out held at 512 MiB |
 | `the contract answers without being started by hand` | a boot with no console login | the port returns a models listing within a bounded wait | "without hand-holding" is the stated outcome |
 
-**Nathan validates:** whether it is actually there when he opens the laptop, which
-is the only version of this that counts.
+**UAT covers:** whether it is actually there when he opens the laptop, which is the
+only version of this that counts.
 
 **Done when:** the two tests above pass. Both must be red when created.
 
@@ -270,7 +271,7 @@ Nathan; that trade only works if the blast radius is genuinely contained.
 | `an agent container reaches nothing but the contract` | an agent task run with only the contract's host and port permitted | every other destination fails and the task still completes | egress is the only boundary the container does not give for free |
 | `a work volume outlives its container and is readable by another` | a volume written by a container that has since exited | a second container attached to the same volume reads what the first wrote | Nathan: inspect through a container on the volume, do not copy anything out |
 
-**Nathan validates:** nothing. If this one needs his judgement it has already failed.
+**UAT covers:** nothing. If this one needs his judgement it has already failed.
 
 **Done when:** the five tests above pass. All must be red when created.
 
@@ -281,7 +282,8 @@ Nathan; that trade only works if the blast radius is genuinely contained.
 <!--
 Checks:
   All eight actor-outcome pairs have a CUJ, plus CUJ-09 for the harness boundary.
-  Tests are mechanical only. Anything needing taste is on a "Nathan validates" line.
+  Tests are mechanical only. Anything needing taste is on a "UAT covers" line,
+  which is a handoff note and never a completion criterion.
   Rigor is concentrated in CUJ-09, where failure is silent.
   21 tests, down from 27. The cut ones were judging quality, which is Nathan's job.
 -->

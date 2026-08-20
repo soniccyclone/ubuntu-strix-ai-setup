@@ -845,3 +845,24 @@ keeping.
 
 27 tests down to 21, and the survivors changed character. The cut was not for
 speed; it was that the removed ones were measuring the wrong thing.
+
+## 2026-08-20 — Correction: the necklace closes at handoff, not after UAT
+
+I had written that a CUJ whose tests pass is "plumbed, not done", and that it is
+done when Nathan has used it and said it is worth keeping. That is backwards.
+UAT is post-development by definition; making it a completion criterion means
+the necklace never closes and the development phase has no defined end.
+
+Nathan's framing, which is the correct one: **this necklace is complete when the
+tests pass and the suite is ready to hand over.** Whatever he finds while using
+it becomes its own necklace — `necklace-tweak` for small corrections, a new
+cycle for anything larger. That is exactly what `necklace-tweak` exists for, so
+the pipeline already had the right shape and I was bending it.
+
+`cuj.md` amended: the per-CUJ line is now **UAT covers**, describing what he will
+evaluate after handoff. It is a handoff note, never a gate. Every `Done when`
+names tests and nothing else, as the template requires.
+
+The underlying scope cut still stands — tests stay mechanical, taste stays with
+Nathan. What changed is where the boundary sits in time, not what is on either
+side of it.
