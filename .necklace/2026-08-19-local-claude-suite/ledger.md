@@ -491,3 +491,48 @@ A command that changes machine state gets written to the planning directory
 **before** it is handed over, not after it is run. Chat is not durable; the
 rollback is worth more than the change and is needed at exactly the moment the
 chat is unreachable.
+
+## 2026-08-20 — GTT change landed (probe 9)
+
+Nathan ran the procedure in `repl/gtt-change.md`. Pre-flight passed: the source
+config carried exactly one changed line against `grub.bak`, and
+`grep -c "amdgpu.gttsize=112640" /boot/grub/grub.cfg` returned 2.
+
+After the reboot:
+
+    mem_info_gtt_total     118111600640    110.00 GiB   (was 61.41)
+    ttm.pages_limit            28835840                 (was 16098096)
+    mem_info_vram_total       536870912    512 MiB      unchanged, as intended
+    id -nG                 render, video                both present
+    /dev/kfd               crw-rw----+ root render      now reachable
+
+    RADV: Radeon 8060S Graphics (113152 MiB, 110920 MiB free)
+                                        was (63395 MiB, 56235 MiB free)
+
++48.6 GiB of addressable GPU memory. The carve-out did not move, which is the
+point: the memory came from raising the borrowing ceiling, not from stealing it
+from the OS.
+
+### Regression check — it got faster
+
+Daily driver, bartowski plain Q4_K_M, same binary and flags:
+
+                  before (61 GiB)      after (110 GiB)
+    pp512      707.42 ± 12.12       811.46 ± 30.57      +14.7%
+    tg128       57.98 ±  0.44        59.64 ±  0.05       +2.9%
+
+Both outside their error bars. Attribution is not clean, though: this is a fresh
+boot, and the "before" run happened on a machine that had spent the day pulling
+141 GB of GGUFs through its page cache. Fragmentation and a bigger ceiling are
+confounded and this probe cannot separate them. Recorded as measured rather than
+explained.
+
+### What this unlocks
+
+108.3 GiB free to the GPU. Qwen3.5-122B-A10B at Q4_K_XL is roughly 70 GB, so the
+deep tier the spec assumed is now actually loadable, with headroom for a KV
+cache at long context. Before the change it was 14 GB short of fitting.
+
+Three things that were blocked on `render` membership are now unblocked: the
+ROCm build for the coding leg, the ComfyUI container in the media cycle, and the
+SkinTokens rig service.

@@ -1,5 +1,10 @@
 # Benchmark matrix — llama.cpp b10502, Vulkan/RADV, gfx1151, ngl 999, fa on, r 3
 
+> Rows below were measured at the original 61.41 GiB GTT ceiling. After raising it
+> to 110 GiB (2026-08-20), the daily driver re-measured at **811.5 pp512 / 59.6
+> tg128**, up 14.7% and 2.9%. Fresh boot and bigger ceiling are confounded; see
+> ledger probe 9. Relative ordering between rows is unaffected.
+
 `gpu_busy_percent` sat at 95-98% during the measured window of every run.
 Harness: `bench.sh`. Machine idle, no downloads, verified before each run.
 
