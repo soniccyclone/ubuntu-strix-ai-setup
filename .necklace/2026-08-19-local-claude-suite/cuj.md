@@ -64,7 +64,7 @@ a multi-turn loop, makes edits he would keep, and is fast enough to stay in.
 
 **Done when:** the two tests above pass. Both must be red when created.
 
-**Beads:**
+**Beads:** ubuntu-strix-ai-setup-e20 (epic), e20.1 llama-swap on metal, e20.2 opencode container — all closed
 
 ---
 
@@ -91,7 +91,7 @@ instead of a terminal, and whether its confirmation prompts land in the right pl
 
 **Depends on:** CUJ-01
 
-**Beads:**
+**Beads:** ubuntu-strix-ai-setup-4sk — all closed
 
 ---
 
@@ -118,7 +118,7 @@ worth deleting, and whether the round-trip preserves anything he cares about.
 
 **Depends on:** CUJ-01
 
-**Beads:**
+**Beads:** ubuntu-strix-ai-setup-v9k — all closed
 
 ---
 
@@ -145,7 +145,7 @@ does it rather than living with the wrong one.
 
 **Depends on:** CUJ-01
 
-**Beads:**
+**Beads:** ubuntu-strix-ai-setup-y8z — all closed
 
 ---
 
@@ -171,7 +171,7 @@ screenshots.
 
 **Depends on:** CUJ-01
 
-**Beads:**
+**Beads:** ubuntu-strix-ai-setup-873 — all closed
 
 ---
 
@@ -195,7 +195,7 @@ whole of it.
 
 **Done when:** the two tests above pass. Both must be red when created.
 
-**Beads:**
+**Beads:** ubuntu-strix-ai-setup-o6m — all closed
 
 ---
 
@@ -217,7 +217,7 @@ whole of it.
 
 **Done when:** the test above passes. It must be red when created.
 
-**Beads:**
+**Beads:** ubuntu-strix-ai-setup-7rb — all closed
 
 ---
 
@@ -244,7 +244,7 @@ only version of this that counts.
 
 **Depends on:** CUJ-01
 
-**Beads:**
+**Beads:** ubuntu-strix-ai-setup-143 — all closed
 
 ---
 
@@ -275,7 +275,7 @@ Nathan; that trade only works if the blast radius is genuinely contained.
 
 **Done when:** the five tests above pass. All must be red when created.
 
-**Beads:**
+**Beads:** ubuntu-strix-ai-setup-aeg (epic), aeg.1 scaffolding, aeg.2 harness base, aeg.3 isolation tests — all closed
 
 ---
 
