@@ -35,7 +35,7 @@ harness-down:            ## Stop the containerised test harness
 test: harness-up media-up  ## Run every test
 	@shopt -s nullglob; files=($(TESTS)/*.bats); \
 	if [ $${#files[@]} -eq 0 ]; then echo "0 tests"; exit 0; fi; \
-	trap '$(MAKE) --no-print-directory media-down' EXIT; \
+	trap '$(STOP_MEDIA)' EXIT; \
 	$(BATS) "$${files[@]}"
 
 test-isolation: harness-up ## Run only the isolation boundary tests
@@ -43,6 +43,10 @@ test-isolation: harness-up ## Run only the isolation boundary tests
 
 TOOLKIT ?= $(HOME)/.local/share/text-to-3d-toolkit
 OUT     ?= $(HOME)/t2m-out
+# Used in traps instead of `$(MAKE) media-down`. GNU make executes any recipe
+# line containing $(MAKE) even under `-n`, so a dry run of these targets was
+# really running them -- it tried to mesh with the services stopped.
+STOP_MEDIA = systemctl --user stop media-comfy media-engine media-rig
 PROMPT  ?= a weathered wooden treasure chest with iron bands
 RES     ?= 1024          # TRELLIS voxel grid, not the image size
 SEED    ?= 1
@@ -84,7 +88,7 @@ media-down:              ## Stop them and free the GPU
 	@echo "stopped; GPU idle"
 
 asset: media-up          ## Text to GLB.  PROMPT="..." [RES=512|1024] [FACES=8000]
-	@trap '$(MAKE) --no-print-directory media-down' EXIT; \
+	@trap '$(STOP_MEDIA)' EXIT; \
 	python3 $(TOOLKIT)/layers/pipeline/src/pipeline.py \
 	  --prompt "$(PROMPT)" --out-dir $(OUT) --res $(RES) \
 	  --target-faces $(FACES) --seed $(SEED) \
@@ -92,7 +96,7 @@ asset: media-up          ## Text to GLB.  PROMPT="..." [RES=512|1024] [FACES=800
 	  --glb-path-only
 
 rig: media-up            ## Rig a humanoid GLB.  make rig GLB=out/foo.glb
-	@trap '$(MAKE) --no-print-directory media-down' EXIT; \
+	@trap '$(STOP_MEDIA)' EXIT; \
 	T2M_RIG_DRIVER=$(TOOLKIT)/layers/rig/src/rig.py tools/rig.sh \
 	  --glb "$(GLB)" --out-dir $(OUT); \
 	rigged=$(OUT)/$$(basename "$(GLB)" .glb)-rigged.glb; \
@@ -106,19 +110,19 @@ require-subj:
 	@test -n "$(SUBJ)" || { echo 'usage: make $(MAKECMDGOALS) SUBJ="an orc shaman with a gnarled staff"'; exit 2; }
 
 ref: require-subj media-up  ## Character reference sheet only.  SUBJ="an orc shaman"
-	@trap '$(MAKE) --no-print-directory media-down' EXIT; \
+	@trap '$(STOP_MEDIA)' EXIT; \
 	img=$$(python3 tools/character.py --subject "$(SUBJ)" --seed $(CHARSEED) --size $(RES) | jq -r .image); \
 	echo "reference: $$img"; python3 tools/refcheck.py "$$img" || true
 
 mesh: require-img media-up  ## Existing image -> textured GLB.  IMG=path [FACES=8000]
-	@trap '$(MAKE) --no-print-directory media-down' EXIT; \
+	@trap '$(STOP_MEDIA)' EXIT; \
 	python3 tools/refcheck.py "$(IMG)" || { echo "fix the reference first"; exit 3; }; \
 	glb=$(OUT)/$$(basename "$(IMG)" .png).glb; \
 	python3 tools/mesh.py "$(IMG)" "$$glb" --resolution $(RES) --target-faces $(FACES) --seed $(SEED); \
 	echo "mesh: $$glb"
 
 from-ref: require-img media-up  ## Existing image -> mesh -> rigged GLB.  IMG=path
-	@trap '$(MAKE) --no-print-directory media-down' EXIT; \
+	@trap '$(STOP_MEDIA)' EXIT; \
 	python3 tools/refcheck.py "$(IMG)" || { echo "fix the reference first"; exit 3; }; \
 	glb=$(OUT)/$$(basename "$(IMG)" .png).glb; \
 	python3 tools/mesh.py "$(IMG)" "$$glb" --resolution $(RES) --target-faces $(FACES) --seed $(SEED); \
@@ -134,7 +138,7 @@ refcheck:                ## Is a reference image one connected subject?  IMG=pat
 	@python3 tools/refcheck.py "$(IMG)"
 
 character: require-subj media-up  ## Reference -> mesh -> rigged GLB.  SUBJ="an orc shaman"
-	@trap '$(MAKE) --no-print-directory media-down' EXIT; \
+	@trap '$(STOP_MEDIA)' EXIT; \
 	img=$$(python3 tools/character.py --subject "$(SUBJ)" --seed $(CHARSEED) --size $(IMGSIZE) | jq -r .image); \
 	echo "reference: $$img"; \
 	python3 tools/refcheck.py "$$img" || { \
@@ -155,7 +159,7 @@ require-img:
 
 faces-ladder: require-img  ## Mesh ONE image at several budgets to compare.  IMG=path
 	@$(MAKE) --no-print-directory media-up
-	@trap '$(MAKE) --no-print-directory media-down' EXIT; \
+	@trap '$(STOP_MEDIA)' EXIT; \
 	for f in $(LADDER); do \
 	  echo "--- $$f faces ---"; \
 	  python3 tools/mesh.py "$(IMG)" "$(OUT)/ladder-$$f.glb" \
@@ -169,7 +173,7 @@ viewer:                  ## Browse generated GLBs (Ctrl-C to stop; needs no GPU)
 	@python3 $(TOOLKIT)/layers/preview/src/serve.py --dir $(OUT) --host 127.0.0.1 --port 8190
 
 sprite: media-up         ## Pixel-art sprite, keyed to real alpha.  make sprite SUBJ=orc
-	@trap '$(MAKE) --no-print-directory media-down' EXIT; \
+	@trap '$(STOP_MEDIA)' EXIT; \
 	python3 tools/pixel_ab.py klein --only $(or $(SUBJ),knight) --out $(OUT)/sprites --key
 
 status:                  ## What is running and what it is costing
