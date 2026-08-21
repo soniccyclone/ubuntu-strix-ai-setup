@@ -40,7 +40,7 @@ note, never a gate.
 
 **Done when:** the two tests above pass. Both must be red when created.
 
-**Beads:**
+**Beads:** ubuntu-strix-ai-setup-nph — closed
 
 ---
 
@@ -64,7 +64,7 @@ note, never a gate.
 
 **Done when:** the two tests above pass. Both must be red when created.
 
-**Beads:**
+**Beads:** ubuntu-strix-ai-setup-100 — closed
 
 ---
 
@@ -89,7 +89,7 @@ note, never a gate.
 
 **Done when:** the three tests above pass. All must be red when created.
 
-**Beads:**
+**Beads:** ubuntu-strix-ai-setup-eop — closed
 
 ---
 
@@ -116,7 +116,7 @@ note, never a gate.
 
 **Depends on:** CUJ-03
 
-**Beads:**
+**Beads:** ubuntu-strix-ai-setup-af0 — closed
 
 ---
 
@@ -142,7 +142,7 @@ note, never a gate.
 
 **Depends on:** CUJ-03
 
-**Beads:**
+**Beads:** ubuntu-strix-ai-setup-6pc — closed
 
 ---
 
@@ -165,7 +165,7 @@ note, never a gate.
 
 **Done when:** the two tests above pass. Both must be red when created.
 
-**Beads:**
+**Beads:** ubuntu-strix-ai-setup-f83 — closed
 
 ---
 
@@ -188,7 +188,7 @@ note, never a gate.
 
 **Done when:** the two tests above pass. Both must be red when created.
 
-**Beads:**
+**Beads:** ubuntu-strix-ai-setup-gkd — closed
 
 ---
 
@@ -211,7 +211,7 @@ note, never a gate.
 
 **Done when:** the two tests above pass. Both must be red when created.
 
-**Beads:**
+**Beads:** ubuntu-strix-ai-setup-bd6 — closed
 
 ---
 
@@ -236,7 +236,7 @@ note, never a gate.
 
 **Done when:** the four tests above pass. All must be red when created.
 
-**Beads:**
+**Beads:** ubuntu-strix-ai-setup-08g — closed
 
 ---
 

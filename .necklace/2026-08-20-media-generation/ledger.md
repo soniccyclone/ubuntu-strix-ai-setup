@@ -680,3 +680,44 @@ treatment.
 that these models emit RGBA is plausible, is printed on the model card, and is
 wrong. If a future model does emit alpha, that test fails, which is the correct
 way to be told.
+
+## 2026-08-21 — Beads worked to completion
+
+All nine CUJs closed. Bead IDs written into `cuj.md`.
+
+A label collision the skill could not know about: cycle 1 already used
+`cuj:CUJ-01`-style labels in this repo, so these carry a second
+`necklace:2026-08-20-media-generation` label to keep the two cycles separable.
+
+### Things the implementation forced that the CUJ document did not anticipate
+
+**Background keying became a stage.** The document assumed the sprite tracks
+emitted transparency. They do not, and `tools/key_bg.py` exists because of it.
+CUJ-01's outcome was rewritten from "without a background-removal step" to
+"with a known background-removal step rather than an assumed one".
+
+**A test now pins a defect on purpose.** `tests/m01-sprite.bats` asserts the raw
+generator output is PNG colour type 2 — no alpha. That reads as testing a bug,
+and it is deliberate: the claim that these models emit RGBA is plausible,
+printed on the model card, and wrong. If a future model does emit alpha the test
+fails, which is how the fact should surface.
+
+**The harness had to learn to explain rejections.** CUJ-06 asked that a missing
+weight fail by name. It did not: `urllib` raised a bare `HTTPError` and printed
+a stack trace, which is the failure mode the CUJ was written to prevent. The
+service says "Value not in list unet_name" and the caller holds the graph, so
+the two together now produce
+
+    REJECTED by the service: Prompt outputs failed validation.
+    Value not in list -- UNETLoader.unet_name = "definitely-not-here.safetensors" is not available
+
+That test also needed a *valid* fixture graph. The first attempt wired a MODEL
+into SaveImage, and type validation rejected it before the weight lookup ran, so
+the test passed on the wrong error.
+
+**Two test-authoring mistakes worth the same note as any other.** A `${VAR:?...}`
+message containing an apostrophe broke `tools/rig.sh` with an unmatched-quote
+error, and `podman inspect .HostConfig.Devices` is empty under rootless podman,
+so device passthrough has to be asserted from inside the container rather than
+from its config. Both are the same lesson as cycle 1's bind-mount test: check
+the running system, not the declaration that was supposed to produce it.
