@@ -721,3 +721,44 @@ error, and `podman inspect .HostConfig.Devices` is empty under rootless podman,
 so device passthrough has to be asserted from inside the container rather than
 from its config. Both are the same lesson as cycle 1's bind-mount test: check
 the running system, not the declaration that was supposed to produce it.
+
+## 2026-08-21 — Services left running twice; made structural instead of promised
+
+Nathan twice found GPU services running that I had started and forgotten. Same
+pattern both times: start services to verify something, prove the thing, write
+up the result, leave the services holding the GPU. The verification was right;
+the cleanup was a thing I intended to remember and did not.
+
+"I will remember" is not a fix, so:
+
+  - `make asset`, `make sprite` and `make rig` now depend on `media-up` and
+    carry `trap '$(MAKE) media-down' EXIT`. They start what they need and stop
+    it again whether they succeed, fail or are interrupted.
+  - `make status` reports GPU busy, GPU memory, containers, every unit's state,
+    and stray `serve.py` / `pipeline.py` helpers.
+  - `make stop-all` stops everything this repo can start and then runs `status`,
+    so the claim is proven rather than asserted.
+  - `make viewer` stays foreground; it is interactive and uses no GPU.
+
+Verified by running `make sprite` three times and checking the GPU fell back to
+0% after each, rather than by reading the Makefile and believing it.
+
+### A false "failed" that would have hidden a real one
+
+After the first fix the units ended every clean stop in `failed`, because
+`systemctl stop` sends SIGTERM, ComfyUI does not handle it, and podman escalates
+to SIGKILL — exit 137. A first attempt guessed 143 (SIGTERM) from habit and did
+not work; the actual code was in `systemctl status`, which I should have read
+before editing. `SuccessExitStatus=143 137 SIGTERM SIGKILL` fixes it.
+
+Worth more than tidiness: a unit that is always `failed` after a normal stop
+makes a genuine failure invisible, because both look identical.
+
+### Also left undone until asked
+
+The toolkit ships a one-command pipeline and a three.js viewer, and I had used
+neither — every stage was driven directly through its HTTP API to measure it.
+That is fine for measurement and useless as a handoff. Nathan asked how to turn
+on the UI from the project's own screenshots, and the answer was a layer I had
+never started. `make asset` and `make viewer` now cover it, both verified end to
+end: prompt to textured GLB in 7m33s, viewer serving the gallery on :8190.

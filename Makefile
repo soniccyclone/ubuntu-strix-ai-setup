@@ -10,7 +10,7 @@ BATS      ?= bats
 TESTS     ?= tests
 
 .PHONY: help setup test test-isolation harness-up harness-down clean \
-        media-up media-down asset viewer sprite llm-up llm-down
+        media-up media-down asset viewer sprite rig llm-up llm-down status stop-all
 
 help:                    ## Show this help
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -62,23 +62,44 @@ media-down:              ## Stop them and free the GPU
 	@systemctl --user stop media-comfy media-engine media-rig
 	@echo "stopped; GPU idle"
 
-asset:                   ## Text to textured GLB.  make asset PROMPT="a brass lantern"
-	@python3 $(TOOLKIT)/layers/pipeline/src/pipeline.py \
+asset: media-up          ## Text to textured GLB.  make asset PROMPT="a brass lantern"
+	@trap '$(MAKE) --no-print-directory media-down' EXIT; \
+	python3 $(TOOLKIT)/layers/pipeline/src/pipeline.py \
 	  --prompt "$(PROMPT)" --out-dir $(OUT) --res $(RES) \
 	  --target-faces $(FACES) --seed $(SEED) \
 	  --runner server --engine-endpoint http://127.0.0.1:8189 \
 	  --glb-path-only
 
-rig:                     ## Rig a humanoid GLB.  make rig GLB=out/foo.glb
-	@T2M_RIG_DRIVER=$(TOOLKIT)/layers/rig/src/rig.py tools/rig.sh \
+rig: media-up            ## Rig a humanoid GLB.  make rig GLB=out/foo.glb
+	@trap '$(MAKE) --no-print-directory media-down' EXIT; \
+	T2M_RIG_DRIVER=$(TOOLKIT)/layers/rig/src/rig.py tools/rig.sh \
 	  --glb "$(GLB)" --out-dir $(OUT)
 
-viewer:                  ## Browse generated GLBs in a three.js viewer
-	@echo "http://127.0.0.1:8190"
+viewer:                  ## Browse generated GLBs (Ctrl-C to stop; needs no GPU)
+	@echo "http://127.0.0.1:8190   -- Ctrl-C when done"
 	@python3 $(TOOLKIT)/layers/preview/src/serve.py --dir $(OUT) --host 127.0.0.1 --port 8190
 
-sprite:                  ## Pixel-art sprite, keyed to real alpha.  make sprite SUBJ=orc
-	@python3 tools/pixel_ab.py klein --only $(or $(SUBJ),knight) --out $(OUT)/sprites --key
+sprite: media-up         ## Pixel-art sprite, keyed to real alpha.  make sprite SUBJ=orc
+	@trap '$(MAKE) --no-print-directory media-down' EXIT; \
+	python3 tools/pixel_ab.py klein --only $(or $(SUBJ),knight) --out $(OUT)/sprites --key
+
+status:                  ## What is running and what it is costing
+	@printf "GPU busy   %s%%\n" "$$(cat /sys/class/drm/card1/device/gpu_busy_percent 2>/dev/null)"
+	@printf "GPU memory %.1f GiB\n" "$$(awk '{print $$1/1073741824}' /sys/class/drm/card1/device/mem_info_gtt_used)"
+	@echo "--- containers ---";  podman ps --format '{{.Names}}\t{{.Status}}' 2>/dev/null || true
+	@echo "--- services ---"
+	@for s in llama-swap contract-socket media-comfy media-engine media-rig; do \
+	   printf "%-18s %s\n" "$$s" "$$(systemctl --user is-active $$s 2>/dev/null)"; done
+	@echo "--- stray helpers ---"
+	@pgrep -a -x python3 2>/dev/null | grep -E "serve\.py|pipeline\.py|pixel_ab" || echo "none"
+
+stop-all:                ## Stop EVERYTHING this repo can start, and prove it
+	@systemctl --user stop media-comfy media-engine media-rig llama-swap contract-socket 2>/dev/null || true
+	@podman rm -f media-comfy media-engine media-rig contract-proxy >/dev/null 2>&1 || true
+	@for p in $$(pgrep -x python3 2>/dev/null); do \
+	   tr '\0' ' ' < /proc/$$p/cmdline 2>/dev/null | grep -q "serve\.py\|pipeline\.py\|pixel_ab" && kill $$p 2>/dev/null || true; done
+	@sleep 3
+	@$(MAKE) --no-print-directory status
 
 clean:                   ## Remove test volumes left behind by a failed run
 	@podman volume ls -q --filter label=suite-test | xargs -r podman volume rm -f

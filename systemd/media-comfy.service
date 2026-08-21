@@ -4,6 +4,11 @@ After=network.target
 
 [Service]
 Type=simple
+# podman run exits 143 on SIGTERM, which is what `systemctl stop` sends. Without
+# 137 too: ComfyUI does not handle SIGTERM, so podman escalates to SIGKILL.
+# Without the unit in "failed" -- which then hides a real
+# failure, because both look identical in `systemctl status`.
+SuccessExitStatus=143 137 SIGTERM SIGKILL
 Restart=on-failure
 RestartSec=10
 # Unprivileged on purpose. --group-add keep-groups carries the render membership
