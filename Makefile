@@ -10,7 +10,7 @@ BATS      ?= bats
 TESTS     ?= tests
 
 .PHONY: help setup test test-isolation harness-up harness-down clean \
-        media-up media-down asset viewer sprite rig llm-up llm-down status stop-all
+        media-up media-down asset viewer sprite rig llm-up llm-down status stop-all faces-ladder
 
 help:                    ## Show this help
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -81,6 +81,20 @@ rig: media-up            ## Rig a humanoid GLB.  make rig GLB=out/foo.glb
 	@trap '$(MAKE) --no-print-directory media-down' EXIT; \
 	T2M_RIG_DRIVER=$(TOOLKIT)/layers/rig/src/rig.py tools/rig.sh \
 	  --glb "$(GLB)" --out-dir $(OUT)
+
+LADDER ?= 2000 8000 20000 60000
+
+faces-ladder:            ## Mesh ONE image at several budgets so you can compare.  IMG=path
+	@test -n "$(IMG)" || { echo 'usage: make faces-ladder IMG=path/to/reference.png'; exit 2; }
+	@$(MAKE) --no-print-directory media-up
+	@trap '$(MAKE) --no-print-directory media-down' EXIT; \
+	for f in $(LADDER); do \
+	  echo "--- $$f faces ---"; \
+	  python3 tools/mesh.py "$(IMG)" "$(OUT)/ladder-$$f.glb" \
+	    --resolution $(RES) --target-faces $$f --seed $(SEED) || true; \
+	  python3 tools/glbinfo.py "$(OUT)/ladder-$$f.glb" 2>/dev/null | jq -c '{triangles,textures}' || true; \
+	done
+	@echo "compare them with:  make viewer"
 
 viewer:                  ## Browse generated GLBs (Ctrl-C to stop; needs no GPU)
 	@echo "http://127.0.0.1:8190   -- Ctrl-C when done"
