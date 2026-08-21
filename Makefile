@@ -9,7 +9,8 @@ CONTRACT  ?= http://127.0.0.1:8080
 BATS      ?= bats
 TESTS     ?= tests
 
-.PHONY: help setup test test-isolation harness-up harness-down clean
+.PHONY: help setup test test-isolation harness-up harness-down clean \
+        media-up media-down asset viewer sprite llm-up llm-down
 
 help:                    ## Show this help
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -34,6 +35,50 @@ test: harness-up         ## Run every test
 
 test-isolation: harness-up ## Run only the isolation boundary tests
 	@$(BATS) $(TESTS)/09-isolation.bats
+
+TOOLKIT ?= $(HOME)/.local/share/text-to-3d-toolkit
+OUT     ?= $(HOME)/t2m-out
+PROMPT  ?= a weathered wooden treasure chest with iron bands
+RES     ?= 512
+FACES   ?= 8000
+SEED    ?= 1
+
+llm-up:                  ## Start the LLM contract (opencode/goose/OpenPencil)
+	@systemctl --user start llama-swap contract-socket
+	@echo "contract on http://127.0.0.1:8080  (roles: fast, fast-text, deep)"
+
+llm-down:                ## Stop the LLM contract
+	@systemctl --user stop llama-swap contract-socket
+
+media-up:                ## Start image + mesh + rig services
+	@systemctl --user start media-comfy media-engine media-rig
+	@printf "waiting"; for i in $$(seq 1 60); do \
+	  curl -sf -m 2 http://127.0.0.1:8188/system_stats >/dev/null 2>&1 && \
+	  curl -sf -m 2 http://127.0.0.1:8189/health >/dev/null 2>&1 && break; \
+	  printf "."; sleep 3; done; echo
+	@echo "comfy 8188 · mesh 8189 · rig 8191"
+
+media-down:              ## Stop them and free the GPU
+	@systemctl --user stop media-comfy media-engine media-rig
+	@echo "stopped; GPU idle"
+
+asset:                   ## Text to textured GLB.  make asset PROMPT="a brass lantern"
+	@python3 $(TOOLKIT)/layers/pipeline/src/pipeline.py \
+	  --prompt "$(PROMPT)" --out-dir $(OUT) --res $(RES) \
+	  --target-faces $(FACES) --seed $(SEED) \
+	  --runner server --engine-endpoint http://127.0.0.1:8189 \
+	  --glb-path-only
+
+rig:                     ## Rig a humanoid GLB.  make rig GLB=out/foo.glb
+	@T2M_RIG_DRIVER=$(TOOLKIT)/layers/rig/src/rig.py tools/rig.sh \
+	  --glb "$(GLB)" --out-dir $(OUT)
+
+viewer:                  ## Browse generated GLBs in a three.js viewer
+	@echo "http://127.0.0.1:8190"
+	@python3 $(TOOLKIT)/layers/preview/src/serve.py --dir $(OUT) --host 127.0.0.1 --port 8190
+
+sprite:                  ## Pixel-art sprite, keyed to real alpha.  make sprite SUBJ=orc
+	@python3 tools/pixel_ab.py klein --only $(or $(SUBJ),knight) --out $(OUT)/sprites --key
 
 clean:                   ## Remove test volumes left behind by a failed run
 	@podman volume ls -q --filter label=suite-test | xargs -r podman volume rm -f
