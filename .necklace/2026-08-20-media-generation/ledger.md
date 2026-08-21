@@ -589,3 +589,50 @@ The pixel-art verdict is deliberately absent from both documents. CUJ-02 require
 both tracks produce matched pairs and that the losing track stays runnable, which is what
 makes the comparison repeatable when either model moves. Encoding a winner would be encoding
 my taste, and the whole reason that CUJ exists is that mine is not the one that counts.
+
+## 2026-08-21 — CORRECTION: the sprites have no alpha channel (probe 12)
+
+I said twice, and told Nathan twice, that the pixel-art LoRA produces "genuine
+RGBA transparency". **It does not.** Every sprite produced in probes 9 and 10 is
+PNG colour type **2** — RGB, three channels, no alpha:
+
+    pixel-knight-512-lora1.0.png    color_type=2  corner_alpha=None
+    pixel-ab/klein-orc.png          color_type=2  corner_alpha=None
+    pixel-ab/sdxl-orc.png           color_type=2  corner_alpha=None
+
+What looked like transparency is the model **painting a checkerboard**, because
+that is how transparency is displayed in the images it trained on. It renders
+the *convention for* transparency as if it were the subject.
+
+### Why I believed it
+
+The LoRA's model card states "**512x512 RGBA** output with transparent
+backgrounds". The picture matched the claim, so I repeated the claim. I did not
+check the file. A rendered checkerboard and real alpha are visually identical
+in every viewer, which is precisely why looking was never going to settle it.
+
+### It is not achievable through this path at all
+
+`VAEDecode` returns `IMAGE` — three channels. The Flux VAE cannot emit alpha.
+ComfyUI ships `JoinImageWithAlpha`, `ImageToMask` and `SplitImageWithAlpha`,
+which exist because alpha has to be **constructed** downstream, never generated
+by the sampler. So the card overclaims for any standard workflow.
+
+### What this costs the plan
+
+The structural argument I made for Track F was native transparency and therefore
+no background-removal stage. **That advantage does not exist.** Both tracks need
+background removal, and Track F's output is arguably the harder of the two to
+key: a flat field is trivial to remove, a painted checkerboard is not.
+
+Track F's remaining advantages are real and unchanged — 5.0 s against 8.0 s, and
+one 4B model shared with the 3D pipeline's image stage. The transparency claim
+is withdrawn.
+
+### The discipline that caught it
+
+A mechanical test written for CUJ-01 — assert colour type 6 and a transparent
+corner pixel — failed on the first run and produced this. The eye could not have
+caught it and neither could a benchmark. It is the clearest case so far for
+tests that check a fact rather than an impression, and it landed on a claim I
+had already stated confidently to the user.

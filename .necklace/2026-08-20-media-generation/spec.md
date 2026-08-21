@@ -57,7 +57,7 @@ matched size. Every workflow in the published benchmark set is bf16.
 
 | Actor | Must be able to observe |
 | --- | --- |
-| Nathan making sprites | A described character becomes a game-ready sprite with a real transparent background, in seconds rather than minutes, without a background-removal step |
+| Nathan making sprites | A described character becomes a sprite in seconds rather than minutes, and reaches a game-ready state with a known background-removal step rather than an assumed one |
 | Nathan making sprites | The same subject rendered by both candidate generators, so he can pick one by eye rather than by argument |
 | Nathan making 3D assets | A described object becomes a textured GLB that a validator accepts and an engine can import, without Blender or CUDA anywhere in the path |
 | Nathan making 3D assets | A described humanoid additionally comes back skinned, with conventionally-named joints and clips that play |
@@ -110,6 +110,11 @@ toolkit assumes a sibling image this cycle deliberately does not use. Those patc
 carried locally, each annotated with what it works around and how to tell when it stops being
 necessary — a missing wheel for a Python version is a fact with an expiry date, unlike a
 design decision.
+
+**Neither sprite track emits alpha, so background removal is a stage, not an afterthought.** The
+Flux VAE returns three channels; the model paints a checkerboard because that is how transparency
+looks in its training data. A pipeline that assumes transparency arrives for free ships checkerboards
+into an engine.
 
 **Two sprite tracks, and the eye decides.** Both candidate generators produce the same
 subject set at matched seeds; the verdict is Nathan's, by the method that produced his earlier
