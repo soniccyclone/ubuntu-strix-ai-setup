@@ -762,3 +762,62 @@ That is fine for measurement and useless as a handoff. Nathan asked how to turn
 on the UI from the project's own screenshots, and the answer was a layer I had
 never started. `make asset` and `make viewer` now cover it, both verified end to
 end: prompt to textured GLB in 7m33s, viewer serving the gallery on :8190.
+
+## 2026-08-21 — Recording how `warrior-1024.png` was actually made
+
+Nathan liked that image and asked for the exact command. **It was not in the
+ledger.** Probe 10 recorded that a character reference was "generated with klein
+at 1024 in 18.1 s" and nothing about how — no prompt, no sampler settings, no
+seed. An image good enough to want again, with no way to get it again.
+
+Recovered from the session and committed as `repl/warrior-1024.json`, which is
+the graph itself rather than a prose description of it.
+
+    model        flux-2-klein-4b.safetensors        (bf16, no LoRA)
+    text encoder qwen_3_4b.safetensors              (type flux2)
+    vae          flux2-vae.safetensors
+    size         1024 x 1024
+    sampler      euler / simple, 4 steps, cfg 1.0, denoise 1.0
+    seed         100000
+    negative     empty
+
+    positive     a female warrior in polished steel plate armour, full body,
+                 standing straight, arms slightly away from body, T-pose,
+                 front view, plain white background, game character reference sheet
+
+    run          python3 tools/imgbench.py \
+                   .necklace/2026-08-20-media-generation/repl/warrior-1024.json --runs 1
+
+### The seed in the original file was a lie
+
+The graph I wrote at the time declared `"seed": 777001`. That value never
+reached the sampler: `imgbench.py`'s `reseed()` rewrites every seed input to
+`100000 + run_index` before queueing, so the run used **100000**. Recording
+777001 would have produced a record that looks precise and reproduces a
+different image — worse than recording nothing, because it would be trusted.
+
+The reseeding exists for a good reason (an identical graph returns a cached
+result in ~1 s and nearly became a finding), but it makes the seed written in a
+graph file advisory rather than authoritative. Anything using that harness must
+read the seed from the harness, not from the file.
+
+### What made the image work, for reuse on other characters
+
+The prompt is doing three separate jobs and it is worth keeping them separate
+when adapting it:
+
+  - the subject
+  - the pose: "full body, standing straight, arms slightly away from body,
+    T-pose, front view" — reconstruction needs limbs separated from the torso
+    and a front-on view
+  - the plate: "plain white background, game character reference sheet" — a
+    clean field the mesh stage can cut against
+
+Known artefact: klein renders a garbled hallucinated watermark in the
+bottom-left corner. Harmless for meshing, and it is cropped out of nothing, so
+expect it to reappear.
+
+### Rule this establishes
+
+Any artefact kept in `repl/` because it is good must have its generating inputs
+kept beside it. A picture without its prompt is a souvenir, not a result.

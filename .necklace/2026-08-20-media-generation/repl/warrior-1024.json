@@ -1,0 +1,12 @@
+{
+  "_comment": "EXACT graph that produced repl/warrior-1024.png. Seed is 100000 because imgbench.py's reseed() overwrites whatever the graph declares; the original file said 777001 and that value never reached the sampler. Run with: python3 tools/imgbench.py <this file> --runs 1",
+  "1": {"class_type":"UNETLoader","inputs":{"unet_name":"flux-2-klein-4b.safetensors","weight_dtype":"default"}},
+  "2": {"class_type":"CLIPLoader","inputs":{"clip_name":"qwen_3_4b.safetensors","type":"flux2"}},
+  "3": {"class_type":"VAELoader","inputs":{"vae_name":"flux2-vae.safetensors"}},
+  "4": {"class_type":"CLIPTextEncode","inputs":{"text":"a female warrior in polished steel plate armour, full body, standing straight, arms slightly away from body, T-pose, front view, plain white background, game character reference sheet","clip":["2",0]}},
+  "5": {"class_type":"CLIPTextEncode","inputs":{"text":"","clip":["2",0]}},
+  "6": {"class_type":"EmptyFlux2LatentImage","inputs":{"width":1024,"height":1024,"batch_size":1}},
+  "7": {"class_type":"KSampler","inputs":{"model":["1",0],"seed":100000,"steps":4,"cfg":1.0,"sampler_name":"euler","scheduler":"simple","positive":["4",0],"negative":["5",0],"latent_image":["6",0],"denoise":1.0}},
+  "8": {"class_type":"VAEDecode","inputs":{"samples":["7",0],"vae":["3",0]}},
+  "9": {"class_type":"SaveImage","inputs":{"images":["8",0],"filename_prefix":"warrior"}}
+}
