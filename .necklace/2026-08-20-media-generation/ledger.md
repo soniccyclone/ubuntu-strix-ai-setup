@@ -200,3 +200,42 @@ at all, the fast path may simply be "load fp8, keep everything resident".
 Both sets downloading in parallel: the exact configuration the skill specifies,
 so its number can be reproduced, and the lighter one, so the gap can be
 attributed rather than guessed at.
+
+## 2026-08-20 — Box calibrated, and half of a "cold" run is loading (probe 6)
+
+ComfyUI from the toolbox image, GPU passed through rootless, reporting
+`cuda:0 AMD Radeon 8060S Graphics : native` with 110 GiB. Qwen-Image 2512 fp8,
+4-step Lightning LoRA, via `repl/imgbench.py` against the running server:
+
+    first run of the session      77.7 s
+    weights resident, reseeded    38.3 s
+                                  40.8 s
+                                  57.8 s
+
+Reference points:
+
+    kyuz0 published, BF16, cold                    75.4 s
+    Nathan, 2026-08-08, Windows comfy-kitchen fp8  36.6 - 38.6 s warm
+
+**77.7 against a published 75.4 calibrates this box within 3%.** Nothing local
+is wrong, and step 1 of the experiment is answered.
+
+**38.3 s warm lands on Nathan's Windows number exactly.** So for diffusion,
+Linux with the stock ROCm toolbox is *equal* to the tuned Windows stack, not
+better. What Linux buys is `/dev/kfd`, which is what the 3D tool needs and what
+WSL2 could not give. That is the honest version of "Linux should be faster" from
+the opening brief: it is not faster here, it is unblocking.
+
+**Roughly half of a cold run is weight loading**, 77.7 against ~39. That is the
+number the 22x hypothesis needed.
+
+### A measurement mistake worth keeping
+
+The first attempt reported `cold 77.7 s / warm 1.0 s` and the warm figure was
+nonsense. ComfyUI caches by graph hash, so re-queuing an identical graph returns
+the previous result in about a second without executing anything. The harness
+now varies the seed on every run and warns if it finds no seed input to vary.
+
+A 1.0 s "warm" result would have been a spectacular finding, and it was the
+tool measuring itself. Worth the reminder that a result far better than expected
+deserves the same scrutiny as one far worse.
