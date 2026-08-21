@@ -333,3 +333,39 @@ unidentified. Its log confirms the probe-7 numbers independently — prompt
 execution of 28.71 s, then 10.50 s, then 10.67 s — so nothing measured is in
 doubt. Restarted with `--restart=unless-stopped`. If it recurs, find the sender
 rather than restarting again.
+
+## 2026-08-21 — TRELLIS.2 mesh engine, setup notes
+
+The engine is the interesting half now that the image stage is 3% of a run.
+Its compose service asks for `/dev/dri` only — no `/dev/kfd`, no ROCm — which
+confirms the Vulkan-only claim, and `group_add 990/44`, which happen to be this
+box's real `render` and `video` gids. `--require-gpu` makes it refuse to fall
+back to CPU rather than quietly taking twenty minutes.
+
+Its isolation shape matches what cycle 1 settled on: models mounted read-only,
+one output directory writable, nothing else.
+
+Two setup traps, both mine:
+
+**`gh repo clone` does not fetch submodules.** The build died at
+`add_subdirectory: /src/thirdparty/ggml does not contain a CMakeLists.txt`.
+The dependency is `pwilkin/ggml` on a `trellis-patches` branch — a fork of ggml
+carrying the TRELLIS kernels — wired in at
+`layers/image2mesh/engine/thirdparty/ggml`. `git submodule update --init
+--recursive` fixes it.
+
+**Then I checked the wrong path** and reported it still missing, because the
+submodule sits under `engine/` while CMake sees it at `/src/thirdparty/ggml`
+after the Dockerfile's COPY. The build was fine; my verification was not.
+
+Weights are `ilintar/trellis2-gguf`, which publishes three precisions:
+
+    root (fp16)    16.49 GB across ten files
+    q8             10.03 GB
+    q4              6.55 GB
+
+Fetching the fp16 root set, since that is what the skill's published 345.3 s
+mesh timing used and the point is to reproduce it before improving on it. Given
+cycle 1 measured a 2.24x swing between quantisations of one model, and probe 4
+measured fp16 beating bf16 by 23% here, the q8 and q4 sets are worth measuring
+afterwards rather than assumed to be slower or faster.
