@@ -129,3 +129,40 @@ on in cycle 1.
 
 Downloading Qwen-Image 2512 fp8 plus the 4-step Lightning LoRA now, which is the
 exact configuration behind both reference numbers.
+
+## 2026-08-20 — Torch sees the raised ceiling, and fp16 beats bf16 (probe 4)
+
+    torch      2.14.0a0+rocm7.15.0a20260721
+    hip        7.15.0
+    available  True
+    device     AMD Radeon 8060S Graphics, gfx1151
+    vram       110.0 GiB
+
+**PyTorch reports 110.0 GiB.** The GTT change from cycle 1 is not an LLM-only
+win — the diffusion stack sees the whole raised pool, which is what makes the
+20B-class image models and the 19B video models loadable here at all.
+
+GEMM throughput, warmed up, 30 iterations:
+
+    fp16  n=2048    15.3 TFLOP/s
+    fp16  n=4096    10.9 TFLOP/s
+    fp16  n=8192     9.5 TFLOP/s
+    bf16  n=4096     8.4 TFLOP/s
+
+Two things fall out.
+
+**Throughput degrades as the matrix grows**, 15.3 down to 9.5. The working set
+outgrows cache and the operands stream from LPDDR5X, so even a compute-bound
+kernel ends up bandwidth-limited at scale. This is the same wall the LLM work
+hit from the other side in cycle 1.
+
+**bf16 is ~23% slower than fp16** at identical size. Every workflow in the
+published benchmark set is BF16, which is a large part of why Nathan's fp8 run
+came in at roughly half their number. It also means precision choice on this
+chip is a throughput decision and not only a quality one — the same shape as the
+quant finding in cycle 1, where the file you pick matters more than the size
+suggests.
+
+A first attempt at this measurement averaged the JIT/autotune pass into the
+result and reported 10.8 TFLOP/s for fp16 at n=4096. Warmed up it is 10.9, so
+the error happened to be small, but it was luck rather than method.
