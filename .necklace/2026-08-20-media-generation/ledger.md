@@ -369,3 +369,66 @@ mesh timing used and the point is to reproduce it before improving on it. Given
 cycle 1 measured a 2.24x swing between quantisations of one model, and probe 4
 measured fp16 beating bf16 by 23% here, the q8 and q4 sets are worth measuring
 afterwards rather than assumed to be slower or faster.
+
+## 2026-08-21 — Mesh stage runs, and it is now the whole cost (probe 8)
+
+Engine up on Vulkan — `vulkan: Radeon 8060S Graphics (RADV STRIX_HALO)` — with
+`/dev/dri` only and no ROCm. Input was the klein diving helmet from probe 7, so
+the subject matches the 3D skill's own README example.
+
+    res 512, default target, cold                271.8 s
+    res 512, default target, warm                315.1 s
+    res 512, default target, ComfyUI stopped     325.1 s
+    res 512, target_faces=12000                  418.2 s
+
+Published figure for res 512, default target, weights resident: **154.2 s**.
+
+### Three things these runs settle
+
+**Weight loading is not the variable.** Warm was slower than cold. Unlike the
+image stage, where load was half of a cold run, the 16 GB of GGUF here costs
+little relative to the compute.
+
+**Contention is not the variable on this box.** ComfyUI was holding 19.3 GiB;
+stopping it moved GTT from 19.3 to 4.2 GiB and the run got *slower*, 315.1 to
+325.1 s. The skill documents a 345 s to 1084 s blowup from exactly this, so it
+is real on their hardware. With the ceiling at 110 GiB there is nothing to
+contend for here, which is a direct dividend of the cycle-1 GTT change.
+
+**A smaller face target costs more, not less.** target 12000 took 418.2 s
+against 325.1 s at the 150000 default, because the work is in the QEM decimation
+and it has further to go. Their guidance recommends 2K-6K for a prop, so the
+cheap-sounding setting is the expensive one.
+
+Run-to-run variance is large and traceable: the shape flow emitted 8,312,940
+faces on one seed and 10,262,608 on another for the same image. Everything
+downstream scales with that.
+
+### Why this is probably not a fair comparison
+
+Their 154.2 s row does not name its subject. Mine is a photorealistic brass
+helmet with three glass ports and a dozen fittings, generated at 1024; their
+image row used a ceramic teapot. Geometric complexity drives voxel count, which
+drives every stage after it. Matching subjects would be needed to call this a
+regression rather than a difference, and it is not worth the hours: the number
+that matters is the total, and the total improved.
+
+### The pipeline works end to end
+
+    scripts/validate-glb.mjs helmet12k.glb
+    0 errors, 0 warnings, 0 infos
+    generator trellis.cpp v1.0.0, glTF 2.0, EXT_texture_webp
+    11568 triangles, 10997 vertices, 3 textures
+
+Kept at `repl/helmet-12k.glb`. Clean against the Khronos validator, which is
+what the project claims and now demonstrably delivers on this machine.
+
+    stage      skill published    measured here
+    image           514.6 s          11.0 s
+    mesh            154.2 s       271.8 - 418.2 s
+    total         ~669 s (11 min)  ~283 - 429 s (4.7 - 7.2 min)
+
+The mesh stage is slower here and the total is still roughly halved, because the
+image stage collapsed by 47x. The bottleneck has moved from a stage that was
+misconfigured to a stage that is genuinely expensive, which is the honest place
+for it to be.
