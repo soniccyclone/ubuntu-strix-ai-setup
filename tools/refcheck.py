@@ -91,10 +91,13 @@ if __name__ == "__main__":
     ap.add_argument("image")
     ap.add_argument("--max-subjects", type=int, default=1)
     # A clean single-subject reference can still be too small to reconstruct.
-    # Known-good warrior: 442x948 = 419k subject pixels, meshed well.
-    # Known-bad orc:      278x472 = 131k subject pixels, meshed to a garbled
-    # blob that the rig then refused. 250k is between them and is a guess from
-    # two data points, not a measured threshold -- it warns, it does not reject.
+    # Confirmed by a controlled test -- same subject, same seed, only IMGSIZE:
+    #   orc      512   278x472 = 131k px  -> garbled mesh, NOT_A_CHARACTER
+    #   orc     1024   526x964 = 507k px  -> rigged clean, 44 joints
+    #   warrior 1024   442x948 = 419k px  -> rigged clean, 46 joints
+    # 250k sits between the failure and the successes. Still an interpolation
+    # from three points rather than a measured boundary, so it warns rather
+    # than rejects.
     ap.add_argument("--min-subject-px", type=int, default=250_000)
     ap.add_argument("--quiet", action="store_true")
     a = ap.parse_args()

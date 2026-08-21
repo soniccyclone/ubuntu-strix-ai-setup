@@ -881,3 +881,42 @@ avoid held props regardless.
 
 opencode UAT is deferred; seeing the contract answer is enough to close CUJ-01
 for now. He is not running the 25-minute suite.
+
+## 2026-08-21 — Reference resolution decides whether a mesh is usable (probe 13)
+
+A clean single-subject T-pose orc reference produced a garbled mesh the rig
+refused. `refcheck` passed it, correctly — it was one connected subject on a
+clean plate. Nathan checked the image and said so, and he was right.
+
+The variable was pixels on the subject:
+
+    orc      512   278x472 = 131k px   garbled, NOT_A_CHARACTER
+    warrior 1024   442x948 = 419k px   rigged, 46 joints
+    orc     1024   526x964 = 507k px   rigged, 44 joints, validator clean
+
+The third row is a **controlled test**: same prompt, same seed, same subject as
+the failure, only `IMGSIZE` changed. TRELLIS builds shape from image features
+and a 278-pixel-wide figure does not carry enough of them.
+
+`refcheck` now warns below 250k subject pixels. That number is an interpolation
+between one failure and two successes, not a measured boundary, so it warns and
+does not reject.
+
+### The cause was my own variable name
+
+`RES` was doing double duty — the reference image size in `ref` and `character`,
+and the TRELLIS voxel grid in `asset` and `mesh`. `make ref` therefore produced
+a 512 px reference while `RES` was documented as a mesh setting. Split into
+`IMGSIZE` (image pixels) and `RES` (voxel grid), both defaulting to 1024.
+
+This is the second defect from that collision. The first was the multi-subject
+orc; this was the small-subject orc. One overloaded name, two failures that
+looked like different problems and cost about fifteen minutes of meshing each.
+
+### Open, not explained
+
+The rigged orc carries `["idle"]` where the warrior carried `["idle", "walk"]`,
+and has 44 joints against 46. Unknown whether the walk solver declined a
+skeleton it could not use, or something about the subject's leg structure. Not
+investigated; flagged for Nathan to judge in the viewer, since whether it
+matters depends on what he does with it.
