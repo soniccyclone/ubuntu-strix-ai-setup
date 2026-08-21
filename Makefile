@@ -60,11 +60,20 @@ llm-down:                ## Stop the LLM contract
 
 media-up:                ## Start image + mesh + rig services
 	@systemctl --user start media-comfy media-engine media-rig
-	@printf "waiting"; for i in $$(seq 1 60); do \
+	@printf "waiting"; for i in $$(seq 1 80); do \
 	  curl -sf -m 2 http://127.0.0.1:8188/system_stats >/dev/null 2>&1 && \
-	  curl -sf -m 2 http://127.0.0.1:8189/health >/dev/null 2>&1 && break; \
+	  curl -sf -m 2 http://127.0.0.1:8189/health      >/dev/null 2>&1 && \
+	  curl -sf -m 2 http://127.0.0.1:8191/health      >/dev/null 2>&1 && break; \
 	  printf "."; sleep 3; done; echo
-	@echo "comfy 8188 · mesh 8189 · rig 8191"
+	@# Report per port rather than announcing all three. The rig service loads
+	@# SkinTokens checkpoints and is the slowest to answer; an earlier version
+	@# waited only on 8188 and 8189 and then printed "rig 8191" anyway, so
+	@# `make rig` fired into a socket that was not listening yet.
+	@for pp in "comfy:8188:/system_stats" "mesh:8189:/health" "rig:8191:/health"; do \
+	  n=$${pp%%:*}; rest=$${pp#*:}; port=$${rest%%:*}; path=$${rest#*:}; \
+	  if curl -sf -m 2 "http://127.0.0.1:$$port$$path" >/dev/null 2>&1; \
+	    then printf "%-6s %s ready\n" "$$n" "$$port"; \
+	    else printf "%-6s %s NOT READY\n" "$$n" "$$port"; fi; done
 
 media-down:              ## Stop them and free the GPU
 	@systemctl --user stop media-comfy media-engine media-rig
