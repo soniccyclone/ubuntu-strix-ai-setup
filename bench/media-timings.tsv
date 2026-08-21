@@ -1,0 +1,21 @@
+stage	model	precision	resolution	residency	target_faces	seconds	notes
+image	Qwen-Image-2512	fp8	1328x1328	cold	-	124.7	Nathan 2026-08-08, Windows comfy-kitchen, reference
+image	Qwen-Image-2512	fp8	1328x1328	warm	-	38.0	Nathan 2026-08-08, Windows comfy-kitchen, reference
+image	Qwen-Image-2512	bf16	1024x1024	cold	-	75.4	kyuz0 published reference, Linux ROCm toolbox
+image	Qwen-Image-2512	fp8	1024x1024	cold	-	77.7	this box; within 3% of the published bf16 reference
+image	Qwen-Image-2512	fp8	1024x1024	warm	-	38.3	this box; matches the Windows warm figure exactly
+image	Qwen-Image-2512	fp8	1024x1024	warm	-	40.8	this box, second warm run
+image	Qwen-Image-2512	fp8	1024x1024	warm	-	57.8	this box, third warm run; run-to-run variance is real
+image	FLUX.2-klein-4B	bf16	1024x1024	published	-	514.6	hec-ovi/text-to-3D-skill published figure
+image	FLUX.2-klein-4B	bf16	1024x1024	cold	-	29.7	this box, same weights and settings as the published row
+image	FLUX.2-klein-4B	bf16	1024x1024	warm	-	11.0	this box; 47x the published figure
+image	FLUX.2-klein-4B	bf16	1024x1024	warm	-	11.1	this box, repeat
+image	FLUX.2-klein-4B+pixelLoRA	bf16	512x512	cold	-	20.1	includes LoRA load
+image	FLUX.2-klein-4B+pixelLoRA	bf16	512x512	warm	-	5.0	per sprite
+image	SDXL-base-1.0+pixel-art-xl	fp16	1024x1024	warm	-	8.0	per sprite, 8 steps cfg 2.0
+mesh	TRELLIS.2	fp16	512	cold	default-150000	271.8	brass helmet, high geometric complexity
+mesh	TRELLIS.2	fp16	512	warm	default-150000	315.1	same subject; warm is not faster, loading is not the variable
+mesh	TRELLIS.2	fp16	512	warm-no-comfy	default-150000	325.1	ComfyUI stopped; contention is not the variable at 110 GiB
+mesh	TRELLIS.2	fp16	512	warm	12000	418.2	a SMALLER target costs MORE: the work is in the decimation
+mesh	TRELLIS.2	fp16	1024	warm	12000	402.9	humanoid; published figure for these settings is 345.3
+rig	SkinTokens	fp16	-	warm	-	11.2	12,732 vertices, 46 joints, idle and walk
