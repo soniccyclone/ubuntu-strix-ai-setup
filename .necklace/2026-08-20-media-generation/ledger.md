@@ -432,3 +432,37 @@ The mesh stage is slower here and the total is still roughly halved, because the
 image stage collapsed by 47x. The bottleneck has moved from a stage that was
 misconfigured to a stage that is genuinely expensive, which is the honest place
 for it to be.
+
+## 2026-08-21 — Pixel-art A/B generated, verdict withheld (probe 9)
+
+Matched subject set — knight, elven archer, orc warrior, treasure chest — same
+seed, both tracks, via `repl/pixel_ab.py`. Pairs kept in `repl/pixel-ab/`.
+
+    track                                  per sprite
+    F  klein 4B + Limbicnation LoRA          5.0 s   512, 4 steps, cfg 1.0
+    S  SDXL + nerijs/pixel-art-xl            8.0 s   1024, 8 steps, cfg 2.0
+
+**Track F is faster**, which inverts the Aug-9 result. That verdict had SDXL
+beating Qwen-Image on speed because SDXL is 2.6 B against Qwen's 20 B. Track F
+is a 4 B model at 4 steps, so the parameter gap no longer buys SDXL anything.
+
+Observable differences, stated as description rather than judgement:
+
+  - Track F emits RGBA with real transparency. Track S emits an opaque field
+    plus a baked drop shadow, so it needs a background-removal stage that Track
+    F does not.
+  - Track F fills the 512 frame. Track S places a smaller sprite inside 1024,
+    so the effective sprite resolution is lower than the file size suggests.
+  - Track F holds higher contrast and a cleaner silhouette at sprite size;
+    Track S detail blends together, and the axe in the orc is hard to read.
+
+**The verdict is Nathan's and is not recorded here.** The Aug-9 method was human
+eval on matched subjects and that method still stands. What this probe
+establishes is that the pair exists, both run in single-digit seconds, and Track
+F clears the hard principle that style must be generated rather than filtered.
+
+One reason to distrust a quick read in Track F's favour: the Track S settings
+are mine, not his. Eight steps at cfg 2.0 with euler_ancestral at 1024 is a
+reasonable default and it is not necessarily what produced his Aug-9 result. A
+tuned Track S may close much of the visible gap, and losing to an undertuned
+opponent is not winning.
