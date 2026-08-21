@@ -91,3 +91,41 @@ The blocker flagged at the end of cycle 1 is not one:
 
 Both nodes present in a rootless container with no privileged flag. Whether a
 ROCm process can actually open them is the next thing the toolbox image settles.
+
+## 2026-08-20 — ROCm works in a rootless container (probe 3)
+
+The thing that killed this on Windows, settled:
+
+    podman run --rm --device=/dev/kfd --device=/dev/dri --group-add keep-groups \
+      docker.io/kyuz0/amd-strix-halo-comfyui:latest rocminfo
+
+    Name: gfx1151
+    Marketing Name: AMD Radeon 8060S Graphics
+    Name: amdgcn-amd-amdhsa--gfx1151
+
+A ROCm process inside a **rootless** container, with no `--privileged`, enumerates
+the GPU by its real architecture. `--group-add keep-groups` is what carries the
+`render` membership through the user namespace, and that membership only exists
+because of the `usermod` in cycle 1.
+
+So the cycle-1 note that "privileged plus device passthrough is exactly where
+rootless podman diverges from Docker" was pessimistic. It does not diverge here,
+and the 3D skill's `docker-compose.yml` asking for a privileged ComfyUI container
+is stricter than this machine actually requires.
+
+Image is `docker.io/kyuz0/amd-strix-halo-comfyui:latest`, 16.2 GB, Fedora with
+ROCm 7 from TheRock nightlies. It carries `/opt/ComfyUI`, a venv, the
+`comfy-workflows` the published benchmarks were produced from, and fetch scripts
+per model family.
+
+### Isolation posture for this cycle, stated rather than assumed
+
+ComfyUI gets one bind mount: a dedicated `~/models-comfy`, nothing else, and
+never `$HOME`. Upstream's own instructions use `toolbox`, which mounts the home
+directory wholesale; that is convenient and it is not what Nathan asked for.
+ComfyUI is a model runner rather than an agent choosing what to touch, so a
+scoped model directory is the right line — the same line the contract proxy sits
+on in cycle 1.
+
+Downloading Qwen-Image 2512 fp8 plus the 4-step Lightning LoRA now, which is the
+exact configuration behind both reference numbers.
