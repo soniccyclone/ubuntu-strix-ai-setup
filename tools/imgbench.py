@@ -5,13 +5,45 @@ The warm number is the point. Every published figure for this hardware is a
 single cold run, so nobody has separated "the model is slow" from "the weights
 are being reloaded". Running the same graph twice separates them.
 """
-import json, sys, time, urllib.request, uuid, argparse
+import json, sys, time, urllib.request, urllib.error, uuid, argparse
+
+def explain(graph, node_id, input_name):
+    """Name the offending value. The service says "Value not in list unet_name";
+    the caller holds the graph and can say WHICH value, which is the difference
+    between a diagnosable error and a scavenger hunt."""
+    node = (graph or {}).get(str(node_id), {})
+    val = node.get("inputs", {}).get(input_name)
+    if val is None:
+        return ""
+    return f' -- {node.get("class_type","?")}.{input_name} = "{val}" is not available'
 
 def post(host, path, obj):
     r = urllib.request.Request(f"http://{host}{path}",
                                data=json.dumps(obj).encode(),
                                headers={"Content-Type": "application/json"})
-    return json.loads(urllib.request.urlopen(r).read())
+    try:
+        return json.loads(urllib.request.urlopen(r).read())
+    except urllib.error.HTTPError as exc:
+        # ComfyUI rejects an unresolvable weight with 400 and puts the useful
+        # detail -- which file, and what it does have -- in the body. Raising
+        # the bare HTTPError throws that away and produces a stack trace, which
+        # is the failure mode this is supposed to avoid.
+        body = exc.read().decode("utf-8", "replace")
+        try:
+            err = json.loads(body)
+            node = err.get("node_errors") or {}
+            detail = err.get("error", {}).get("message", "")
+            graph = (obj or {}).get("prompt")
+            extras = []
+            for k, v in node.items():
+                for e in v.get("errors", []):
+                    name = e.get("extra_info", {}).get("input_name", "")
+                    extras.append(e.get("message", "") + explain(graph, k, name))
+            print(f"REJECTED by the service: {detail}. " + "; ".join(extras),
+                  file=sys.stderr)
+        except Exception:
+            print(f"REJECTED by the service (HTTP {exc.code}): {body[:400]}", file=sys.stderr)
+        raise SystemExit(2)
 
 def get(host, path):
     return json.loads(urllib.request.urlopen(f"http://{host}{path}").read())
