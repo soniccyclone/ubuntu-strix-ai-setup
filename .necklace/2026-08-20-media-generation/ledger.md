@@ -166,3 +166,37 @@ suggests.
 A first attempt at this measurement averaged the JIT/autotune pass into the
 result and reported 10.8 TFLOP/s for fp16 at n=4096. Warmed up it is 10.9, so
 the error happened to be small, but it was luck rather than method.
+
+## 2026-08-20 — A concrete hypothesis for the 22x (probe 5)
+
+Located the exact weights the 3D skill names, in
+`Comfy-Org/vae-text-encorder-for-flux-klein-4b`:
+
+    split_files/diffusion_models/flux-2-klein-4b.safetensors     7.75 GB
+    split_files/text_encoders/qwen_3_4b.safetensors              8.04 GB
+    split_files/vae/flux2-vae.safetensors                        0.34 GB
+
+**The text encoder is larger than the diffusion model.** FLUX.2 klein "4B" is
+4B of transformer plus a Qwen3-4B text encoder, so a run touches roughly 16 GB
+of weights, not 8. If ComfyUI evicts and reloads the encoder between runs — the
+default when memory is tight, and the skill's own timings show a mesh run
+slowing from 345 s to 1084 s purely because the image model stayed resident —
+then a large part of that 514 s is model loading rather than sampling.
+
+That is now the leading explanation, and it predicts something testable: the
+*second* image in a session should be far faster than the first. The skill's
+published table reports only single runs (514.6 s for a 1024 square, 519.1 s for
+a portrait), which is consistent with every one of them paying a cold load.
+
+Lighter variants exist and are worth measuring against the same prompt:
+
+    flux-2-klein-4b-fp8.safetensors        4.07 GB   (vs 7.75 bf16)
+    qwen_3_4b_fp4_flux2.safetensors        3.85 GB   (vs 8.04)
+
+7.9 GB against 16.1 GB for the pair. Given probe 4 measured fp16 beating bf16 by
+23% on raw GEMM, and given 110 GiB of headroom means nothing needs to be evicted
+at all, the fast path may simply be "load fp8, keep everything resident".
+
+Both sets downloading in parallel: the exact configuration the skill specifies,
+so its number can be reproduced, and the lighter one, so the gap can be
+attributed rather than guessed at.
