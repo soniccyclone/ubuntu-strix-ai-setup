@@ -557,3 +557,35 @@ name the file, which is a better failure than not building.
 That is the same manoeuvre the toolkit already performs for flash-attn and bpy:
 read the source, find that the blocker is packaging rather than computation, and
 route around it without forking upstream.
+
+## 2026-08-21 — spec.md and cuj.md written
+
+Eleven probes in, the research is done: every stage of the pipeline has been run on this
+machine and every claim in the spec is a measurement rather than a citation.
+
+`spec.md` at roughly two pages, nine actor-outcome pairs. `cuj.md` with nine CUJs and 22
+mechanical tests, following the cycle-1 structure — taste on **UAT covers** lines that gate
+nothing, and rigor concentrated where failure is silent.
+
+For this cycle, silent means four things specifically:
+
+  - a stage falling back to CPU, which merely looks like slowness
+  - a GLB that carries the glTF magic bytes but is not a usable asset
+  - a container holding more privilege than the plan claims
+  - a home directory mounted somewhere nobody looked
+
+CUJ-03 and CUJ-09 carry those. Everything else gets a smoke test.
+
+Three test rows exist only because a probe went wrong first:
+
+  - the harness must vary the seed, because an identical graph returned in 1.0 s without
+    executing and that nearly became a finding
+  - every timing row must state residency, because cold and warm differ by 3x on the image
+    stage
+  - a missing weight must fail by name, because the published workflows reference bf16
+    filenames while the fetch script defaults to fp8, making that mismatch the common case
+
+The pixel-art verdict is deliberately absent from both documents. CUJ-02 requires only that
+both tracks produce matched pairs and that the losing track stays runnable, which is what
+makes the comparison repeatable when either model moves. Encoding a winner would be encoding
+my taste, and the whole reason that CUJ exists is that mine is not the one that counts.
