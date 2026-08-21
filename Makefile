@@ -11,7 +11,7 @@ TESTS     ?= tests
 
 .PHONY: help setup test test-isolation harness-up harness-down clean \
         media-up media-down asset viewer sprite rig llm-up llm-down status stop-all \
-        faces-ladder ref character prompt refcheck mesh from-ref require-subj require-img
+        faces-ladder ref character prompt refcheck rigcheck mesh from-ref require-subj require-img
 
 help:                    ## Show this help
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -94,7 +94,9 @@ asset: media-up          ## Text to GLB.  PROMPT="..." [RES=512|1024] [FACES=800
 rig: media-up            ## Rig a humanoid GLB.  make rig GLB=out/foo.glb
 	@trap '$(MAKE) --no-print-directory media-down' EXIT; \
 	T2M_RIG_DRIVER=$(TOOLKIT)/layers/rig/src/rig.py tools/rig.sh \
-	  --glb "$(GLB)" --out-dir $(OUT)
+	  --glb "$(GLB)" --out-dir $(OUT); \
+	rigged=$(OUT)/$$(basename "$(GLB)" .glb)-rigged.glb; \
+	test -f "$$rigged" && python3 tools/rigcheck.py "$$rigged" || true
 
 SUBJ    ?=
 CHARSEED ?= 100000
@@ -121,7 +123,12 @@ from-ref: require-img media-up  ## Existing image -> mesh -> rigged GLB.  IMG=pa
 	glb=$(OUT)/$$(basename "$(IMG)" .png).glb; \
 	python3 tools/mesh.py "$(IMG)" "$$glb" --resolution $(RES) --target-faces $(FACES) --seed $(SEED); \
 	echo "mesh: $$glb"; \
-	T2M_RIG_DRIVER=$(TOOLKIT)/layers/rig/src/rig.py tools/rig.sh --glb "$$glb" --out-dir $(OUT) | tail -4
+	T2M_RIG_DRIVER=$(TOOLKIT)/layers/rig/src/rig.py tools/rig.sh --glb "$$glb" --out-dir $(OUT) | tail -4; \
+	rigged=$(OUT)/$$(basename "$$glb" .glb)-rigged.glb; \
+	test -f "$$rigged" && python3 tools/rigcheck.py "$$rigged" || true
+
+rigcheck:                ## Is a rigged GLB skeleton coherent?  GLB=path
+	@python3 tools/rigcheck.py "$(GLB)"
 
 refcheck:                ## Is a reference image one connected subject?  IMG=path
 	@python3 tools/refcheck.py "$(IMG)"

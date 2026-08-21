@@ -920,3 +920,53 @@ and has 44 joints against 46. Unknown whether the walk solver declined a
 skeleton it could not use, or something about the subject's leg structure. Not
 investigated; flagged for Nathan to judge in the viewer, since whether it
 matters depends on what he does with it.
+
+## 2026-08-21 — The missing walk clip is a mis-sided skeleton (probe 14)
+
+Nathan reported the rigged orc still had no walk. Investigated rather than left
+open, and it is not a missing clip — it is a broken rig that validates clean.
+
+    orc      LeftUpLeg x2, LeftLeg x2, LeftFoot x2, LeftToeBase x2
+             RightArm x2, RightForeArm x2, RightShoulder x2, RightHand* x2
+             -> no Right leg at all, no Left arm at all
+    warrior  all eight limb names distinct, 46 joints
+
+**Both limb pairs are sided wrongly, in opposite directions.** The legs came out
+both-Left, the arms came out both-Right.
+
+The missing walk follows mechanically: `clips.walk()` requires
+`mixamorig:RightUpLeg` and `mixamorig:RightLeg`, finds neither, and returns
+`None`, which `[clip for clip in (idle(...), walk(...)) if clip]` silently drops.
+
+### Why upstream's guard did not catch it
+
+`skeleton.py` sides each limb by comparing its start against the root on X, then
+checks:
+
+    left  = count of names starting "mixamorig:Left"
+    right = count of names starting "mixamorig:Right"
+    if not left or not right: raise SkeletonError
+
+That counts across the **whole body**. Lefts from the legs and rights from the
+arms satisfy it while every pair is broken. The check needs to be per pair, not
+per body.
+
+I have not established *why* the sider failed on this subject — the X values in
+the GLB are local translations rather than the armature-frame positions the
+sider uses, so confirming the mechanism would mean instrumenting upstream. The
+outcome is unambiguous; the cause is not, and I am not claiming it.
+
+### What was added
+
+`tools/rigcheck.py` rejects a rigged GLB that has duplicate joint names, a limb
+present on one side only, or a missing expected clip. `make rig` and
+`make from-ref` run it after rigging, and `make rigcheck GLB=...` runs it alone.
+
+    orc      REJECT: 15 duplicate names, 6 one-sided limbs, missing walk
+    warrior  ok: 46 joints, clips [idle, walk], no duplicate names
+
+This is the third checker this cycle that exists because something passed a
+validator and was still wrong: `refcheck` for multi-subject and small-subject
+references, `rigcheck` for incoherent skeletons, and the colour-type assertion
+for sprites whose transparency was painted rather than real. A file being
+well-formed keeps turning out to be unrelated to it being usable.
