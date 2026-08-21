@@ -40,8 +40,15 @@ TOOLKIT ?= $(HOME)/.local/share/text-to-3d-toolkit
 OUT     ?= $(HOME)/t2m-out
 PROMPT  ?= a weathered wooden treasure chest with iron bands
 RES     ?= 512
-FACES   ?= 8000
 SEED    ?= 1
+# FACES is a game budget, not a speed knob, and it trades the wrong way:
+#   FACES=150000 (engine default)   325 s   142,824 triangles
+#   FACES=8000                     ~420 s    ~8,000 triangles
+# ~90 s more for a mesh 12x lighter. Worth paying because decimation runs BEFORE
+# the UV bake, so the texture is baked onto the geometry that survives --
+# decimating in Blender afterwards costs you that fit. Raise it only if you
+# intend to retopologise by hand anyway.
+FACES   ?= 8000
 
 llm-up:                  ## Start the LLM contract (opencode/goose/OpenPencil)
 	@systemctl --user start llama-swap contract-socket
@@ -62,7 +69,7 @@ media-down:              ## Stop them and free the GPU
 	@systemctl --user stop media-comfy media-engine media-rig
 	@echo "stopped; GPU idle"
 
-asset: media-up          ## Text to textured GLB.  make asset PROMPT="a brass lantern"
+asset: media-up          ## Text to GLB.  PROMPT="..." [RES=512|1024] [FACES=8000]
 	@trap '$(MAKE) --no-print-directory media-down' EXIT; \
 	python3 $(TOOLKIT)/layers/pipeline/src/pipeline.py \
 	  --prompt "$(PROMPT)" --out-dir $(OUT) --res $(RES) \
