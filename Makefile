@@ -10,7 +10,7 @@ BATS      ?= bats
 TESTS     ?= tests
 
 .PHONY: help setup test test-isolation harness-up harness-down clean \
-        media-up media-down asset viewer sprite rig llm-up llm-down status stop-all \
+        media-up media-down asset viewer sprite rig llm-up llm-down chat status stop-all \
         faces-ladder ref character prompt refcheck rigcheck mesh from-ref require-subj require-img
 
 help:                    ## Show this help
@@ -62,6 +62,10 @@ FACES   ?= 8000
 llm-up:                  ## Start the LLM contract (opencode/goose/OpenPencil)
 	@systemctl --user start llama-swap contract-socket
 	@echo "contract on http://127.0.0.1:8080  (roles: fast, fast-text, deep)"
+
+chat: llm-up             ## Stream a reply live.  Q="..." [M=fast|deep]
+	@test -n "$(Q)" || { echo 'usage: make chat Q="explain X" [M=deep]'; exit 2; }
+	@python3 tools/chat.py --model $(or $(M),fast) $(if $(HIDE),--hide-thinking,) "$(Q)"
 
 llm-down:                ## Stop the LLM contract
 	@systemctl --user stop llama-swap contract-socket

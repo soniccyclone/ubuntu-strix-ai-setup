@@ -14,6 +14,14 @@ macros:
   # -ngl 999 because partial offload is a proportional loss on this part:
   # the CPU reaches ~80 GB/s of a ~256 GB/s bus (repl/membw.c).
   common: "--host 127.0.0.1 --port ${PORT} -ngl 999 -fa on --no-warmup"
+  # Full native context on every role. This is nearly free on these models
+  # because three quarters of their blocks are Gated DeltaNet, whose state is
+  # constant rather than growing with the window. Measured on the 122B:
+  #     32k   76.0 GiB      128k  78.5 GiB      262k  81.9 GiB
+  # Eight times the context for 5.9 GiB. A standard transformer would have
+  # needed roughly eight times the KV cache for the same window.
+  # (context is set per role below, not via a macro, so each role's window is
+  # visible where its weights are named)
 
 models:
   # 20.74 GiB | 811 pp512 | 59.6 tg128 | vision via mmproj | 262k native ctx
@@ -24,7 +32,7 @@ models:
       ${server} ${common}
       -m ${m}/qwen3.6-bartowski/Qwen_Qwen3.6-35B-A3B-Q4_K_M.gguf
       --mmproj ${m}/qwen3.6-35b-a3b/mmproj-F16.gguf
-      -c 32768
+      -c 262144
     ttl: 900
     aliases: ["vision", "gpt-4o-mini", "claude-3-5-haiku-latest"]
     env:
@@ -36,7 +44,7 @@ models:
     cmd: >
       ${server} ${common}
       -m ${m}/qwen3.6-bartowski/Qwen_Qwen3.6-35B-A3B-Q4_K_M.gguf
-      -c 32768
+      -c 262144
     ttl: 600
     env:
       - "LD_LIBRARY_PATH=/home/nathan/.local/opt/llama.cpp-vulkan/llama-b10502"
@@ -48,7 +56,7 @@ models:
       ${server} ${common}
       -m ${m}/qwen3.5-122b/Qwen3.5-122B-A10B-Q4_K_M-00001-of-00002.gguf
       --mmproj ${m}/qwen3.5-122b/mmproj-BF16.gguf
-      -c 32768
+      -c 262144
     ttl: 600
     aliases: ["claude-sonnet-4-5", "gpt-4o"]
     env:

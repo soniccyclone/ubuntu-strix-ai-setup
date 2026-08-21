@@ -1022,3 +1022,30 @@ filter on `/proc/<pid>/cmdline` if more precision is needed.
 server over HTTP and WebSocket. The CUJ document assumed CLI-only for the
 headless path and treated the GUI as out of reach without a display. If the GUI
 leg is revisited, that is the seam to look at first.
+
+## 2026-08-21 — Context was capped at 32k for no measured reason
+
+Nathan hit a context limit in normal use. Every role carried `-c 32768`, which
+I set without justifying and never revisited, on models with a 262k native
+window.
+
+Measured on the 122B, weights plus KV, resident:
+
+    32768    76.0 GiB
+    131072   78.5 GiB
+    262144   81.9 GiB
+
+**Eight times the window for 5.9 GiB.** That is the Gated DeltaNet architecture
+paying off: three quarters of the blocks carry constant state rather than a KV
+cache that grows with the window, so long context costs far less here than on a
+standard transformer. The same property made these models slow to decode
+(probe 6) — it is the same design decision seen from the other side.
+
+All three roles now run at full native 262144. `fast` costs 31.3 GiB, `deep`
+81.6 GiB, both well inside the 110 GiB ceiling from cycle 1.
+
+The cap was never wrong on evidence; it was never right either. 32k was a
+number I typed while writing a config and it survived into normal use because
+nothing tested it. Both the spec and the CUJ document talk about the 262k native
+context as a selling point of the roster while the config quietly served an
+eighth of it.

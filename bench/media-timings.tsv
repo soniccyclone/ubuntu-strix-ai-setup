@@ -19,3 +19,6 @@ mesh	TRELLIS.2	fp16	512	warm-no-comfy	default-150000	325.1	ComfyUI stopped; cont
 mesh	TRELLIS.2	fp16	512	warm	12000	418.2	a SMALLER target costs MORE: the work is in the decimation
 mesh	TRELLIS.2	fp16	1024	warm	12000	402.9	humanoid; published figure for these settings is 345.3
 rig	SkinTokens	fp16	-	warm	-	11.2	12,732 vertices, 46 joints, idle and walk
+context	Qwen3.5-122B-A10B	Q4_K_M	32768	resident	-	0	this box: 76.0 GiB GTT with weights+KV
+context	Qwen3.5-122B-A10B	Q4_K_M	131072	resident	-	0	this box: 78.5 GiB GTT
+context	Qwen3.5-122B-A10B	Q4_K_M	262144	resident	-	0	this box: 81.9 GiB GTT, full native window
