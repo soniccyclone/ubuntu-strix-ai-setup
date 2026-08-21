@@ -1,0 +1,23 @@
+[Unit]
+Description=TRELLIS.2 mesh engine (Vulkan only)
+After=network.target
+
+[Service]
+Type=simple
+Restart=on-failure
+RestartSec=10
+# /dev/dri only: this stage is Vulkan and never touches ROCm or /dev/kfd.
+# --require-gpu makes it fail loudly rather than fall back to CPU, which would
+# merely look like slowness.
+ExecStartPre=-/usr/bin/podman rm -f media-engine
+ExecStart=/usr/bin/podman run --rm --name media-engine \
+  --device=/dev/dri --group-add keep-groups \
+  -e GGML_VK_PREFER_HOST_MEMORY=1 \
+  -v %h/models-trellis2:/models:ro -v %h/t2m-out:/work \
+  -p 127.0.0.1:8189:8189 \
+  localhost/text-to-3d/engine:vulkan \
+  server --host 0.0.0.0 --port 8189 --models /models --require-gpu
+ExecStop=/usr/bin/podman stop -t 20 media-engine
+
+[Install]
+WantedBy=default.target

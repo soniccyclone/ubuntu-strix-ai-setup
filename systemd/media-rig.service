@@ -1,0 +1,22 @@
+[Unit]
+Description=SkinTokens rig service (ROCm)
+After=network.target
+
+[Service]
+Type=simple
+Restart=on-failure
+RestartSec=10
+# Upstream compose asks for privileged:true here. Measured: not needed. Device
+# passthrough plus keep-groups is sufficient on rootless podman.
+ExecStartPre=-/usr/bin/podman rm -f media-rig
+ExecStart=/usr/bin/podman run --rm --name media-rig \
+  --device=/dev/kfd --device=/dev/dri --group-add keep-groups \
+  -e HSA_OVERRIDE_GFX_VERSION=11.5.1 -e HIP_VISIBLE_DEVICES=0 \
+  --ipc=host --security-opt seccomp=unconfined \
+  -v %h/models-skintokens/experiments:/models:ro -v %h/t2m-out:/work \
+  -p 127.0.0.1:8191:8191 \
+  localhost/text-to-3d/rig:rocm
+ExecStop=/usr/bin/podman stop -t 20 media-rig
+
+[Install]
+WantedBy=default.target

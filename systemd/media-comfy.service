@@ -1,0 +1,22 @@
+[Unit]
+Description=ComfyUI (ROCm, gfx1151) — image generation
+After=network.target
+
+[Service]
+Type=simple
+Restart=on-failure
+RestartSec=10
+# Unprivileged on purpose. --group-add keep-groups carries the render membership
+# through the user namespace; upstream's toolbox instructions mount $HOME, this
+# mounts one scoped model directory instead.
+ExecStartPre=-/usr/bin/podman rm -f media-comfy
+ExecStart=/usr/bin/podman run --rm --name media-comfy \
+  --device=/dev/kfd --device=/dev/dri --group-add keep-groups \
+  -v %h/models-comfy:/root/comfy-models:z \
+  -p 127.0.0.1:8188:8188 \
+  docker.io/kyuz0/amd-strix-halo-comfyui:latest \
+  bash -lc 'source /opt/set_extra_paths.sh 2>/dev/null; cd /opt/ComfyUI && /opt/venv/bin/python main.py --listen 0.0.0.0 --port 8188 --bf16-vae'
+ExecStop=/usr/bin/podman stop -t 20 media-comfy
+
+[Install]
+WantedBy=default.target
