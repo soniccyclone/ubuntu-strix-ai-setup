@@ -466,3 +466,46 @@ are mine, not his. Eight steps at cfg 2.0 with euler_ancestral at 1024 is a
 reasonable default and it is not necessarily what produced his Aug-9 result. A
 tuned Track S may close much of the visible gap, and losing to an undertuned
 opponent is not winning.
+
+## 2026-08-21 — Humanoid meshed; the rig layer needed porting (probe 10)
+
+Character reference generated with klein at 1024 in **18.1 s** — full body,
+near-T-pose, plain background, which is what the reconstruction wants. Kept at
+`repl/warrior-1024.png`. It carries a garbled hallucinated watermark in the
+bottom-left corner, harmless for meshing and worth knowing klein does that.
+
+    res 1024, target_faces 12000        402.9 s
+    skill published, same settings      345.3 s
+
+1.17x, far closer than the 512 comparison. That supports the probe-8 reading
+that the 512 gap was subject complexity rather than a regression: a humanoid in
+plate armour is closer in geometric complexity to whatever they measured than a
+brass helmet with three glass ports was.
+
+### The rig layer does not build against this base, and the reasons stack
+
+Its Dockerfile is `FROM comfyui-strix-halo:latest`, the sibling
+`comfyui-strix-docker` image, which this cycle deliberately does not use — the
+kyuz0 toolbox is the calibrated one. Tagging the toolbox under that name gets
+past the FROM and straight into three incompatibilities:
+
+    apt-get                  the toolbox is Fedora; dnf and microdnf, no apt
+    /app/.venv/bin/python    the toolbox venv is /opt/venv
+    uv                       not installed in the toolbox
+
+All three are mechanical. Patched: `dnf install` with Fedora package names
+(`mesa-libGL glib2 libgomp`), `/opt/venv/bin/python -m pip`, and an explicit
+interpreter in the ENTRYPOINT.
+
+### Two mistakes of mine in that sequence
+
+**A status marker that lied.** The first rig build wrote `echo DONE` with a
+`;` rather than `&&`, so the marker appeared whether the build succeeded or not,
+and I went on to run a container from an image that did not exist. This is the
+same guarantee I built into cycle 1's `fetch-122b.sh` on purpose and then did
+not carry over. Markers now reflect the exit code.
+
+**A blind sed.** Rewriting `--python /app/.venv/bin/python` to point at the new
+venv left uv's flag behind as a positional argument to pip, so the build tried
+to install the interpreter as a package. The flag and its value had to go
+together. Redone from a saved copy of the original rather than patched further.
