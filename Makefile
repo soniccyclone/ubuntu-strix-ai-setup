@@ -10,7 +10,8 @@ BATS      ?= bats
 TESTS     ?= tests
 
 .PHONY: help setup test test-isolation harness-up harness-down clean \
-        media-up media-down asset viewer sprite rig llm-up llm-down status stop-all faces-ladder
+        media-up media-down asset viewer sprite rig llm-up llm-down status stop-all \
+        faces-ladder ref character prompt
 
 help:                    ## Show this help
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -81,6 +82,28 @@ rig: media-up            ## Rig a humanoid GLB.  make rig GLB=out/foo.glb
 	@trap '$(MAKE) --no-print-directory media-down' EXIT; \
 	T2M_RIG_DRIVER=$(TOOLKIT)/layers/rig/src/rig.py tools/rig.sh \
 	  --glb "$(GLB)" --out-dir $(OUT)
+
+SUBJ    ?=
+CHARSEED ?= 100000
+
+ref: media-up            ## Character reference sheet only.  SUBJ="an orc shaman"
+	@test -n "$(SUBJ)" || { echo 'usage: make ref SUBJ="an orc shaman with a gnarled staff"'; exit 2; }
+	@trap '$(MAKE) --no-print-directory media-down' EXIT; \
+	python3 tools/character.py --subject "$(SUBJ)" --seed $(CHARSEED) --size $(RES)
+
+character: media-up      ## Reference -> mesh -> rigged GLB.  SUBJ="an orc shaman"
+	@test -n "$(SUBJ)" || { echo 'usage: make character SUBJ="an orc shaman with a gnarled staff"'; exit 2; }
+	@trap '$(MAKE) --no-print-directory media-down' EXIT; \
+	img=$$(python3 tools/character.py --subject "$(SUBJ)" --seed $(CHARSEED) --size 1024 | jq -r .image); \
+	echo "reference: $$img"; \
+	glb=$(OUT)/$$(basename "$$img" .png).glb; \
+	python3 tools/mesh.py "$$img" "$$glb" --resolution 1024 --target-faces $(FACES) --seed $(CHARSEED); \
+	echo "mesh: $$glb"; \
+	T2M_RIG_DRIVER=$(TOOLKIT)/layers/rig/src/rig.py tools/rig.sh --glb "$$glb" --out-dir $(OUT) | tail -3; \
+	echo "rigged into $(OUT)"
+
+prompt:                  ## Show the prompt a subject would produce, run nothing
+	@python3 tools/character.py --subject "$(SUBJ)" --print-prompt
 
 LADDER ?= 2000 8000 20000 60000
 
