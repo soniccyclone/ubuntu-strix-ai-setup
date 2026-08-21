@@ -239,3 +239,51 @@ now varies the seed on every run and warns if it finds no seed input to vary.
 A 1.0 s "warm" result would have been a spectacular finding, and it was the
 tool measuring itself. Worth the reminder that a result far better than expected
 deserves the same scrutiny as one far worse.
+
+## 2026-08-20 — The 22x is answered: it was the container (probe 7)
+
+FLUX.2 klein 4B bf16, 1024 square, 4 steps, euler/simple, cfg 1.0 — the 3D
+skill's exact configuration, on its exact weights, in the calibrated toolbox
+container. Minimal API graph in `repl/`, seeds varied per run:
+
+    cold    29.7 s
+    warm    11.0 s
+    warm    11.1 s
+
+Against the skill's published **514.6 s** for the same model, resolution and
+step count on the same silicon:
+
+    17.3x faster cold        47x faster warm
+
+Verified rather than assumed, because the result was better than expected in the
+same way the bogus 1.0 s warm run was: three 1024x1024 PNGs at ~1.1 MB each, and
+`repl/klein-1024-4step-11s.png` is a correct brass diving helmet with round
+glass ports on a plain background — the skill's own README prompt. Not noise,
+not a cached stub, not an error that returned quickly.
+
+**The hardware was never the problem and neither was the model.** Nothing about
+klein is slow on gfx1151. The 514.6 s belongs to that container's configuration.
+The text-encoder-reload hypothesis from probe 5 was reasonable and is not needed
+to explain a 47x gap; whatever is wrong there is bigger than an eviction.
+
+### What this does to the 3D pipeline
+
+    stage        skill's published    measured here
+    image             514.6 s            11.0 s warm
+    mesh (Vulkan)     345.3 s            unchanged, not yet run
+    rig                13.0 s            unchanged, not yet run
+
+A character at 1024 was about fifteen minutes with the image stage as 60% of it.
+It becomes roughly six minutes with the image stage at 3%. The bottleneck moves
+to the mesh engine, which is where that project actually put its optimisation
+work and where its documented 14.5% win came from.
+
+### And the hardware question closes
+
+Nathan said the RX 9070 XT is on the LAN but must not be depended on. It is not
+needed. The reason to move diffusion to it was an 8.6-minute image stage that
+does not exist. A second machine buys nothing here that eleven seconds does not
+already provide.
+
+The open item from cycle 1 — "if the gap closes, the second machine is
+unnecessary" — is closed in that direction.
