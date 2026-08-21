@@ -821,3 +821,63 @@ expect it to reappear.
 
 Any artefact kept in `repl/` because it is good must have its generating inputs
 kept beside it. A picture without its prompt is a souvenir, not a result.
+
+## 2026-08-21 — UAT round 1: Nathan's verdicts and one real defect
+
+### Pixel-art A/B: Track F wins
+
+Nathan, on the matched pairs: "ALL the SDXL ones SUCK." That is the verdict the
+Aug-9 method was for, and it settles CUJ-02. `klein 4B + Limbicnation LoRA` is
+the sprite track; `SDXL + nerijs/pixel-art-xl` is shelved but stays runnable, as
+the CUJ requires, so the comparison can be repeated when either model moves.
+
+Worth recording that the timing argument reversed too: Track F is 5.0 s against
+Track S's 8.0 s, where the Aug-9 verdict had SDXL winning on speed against a
+20 B Qwen-Image. A 4 B model at 4 steps removed that advantage.
+
+### `make character` produced an unriggable mesh, and the prompt was mine
+
+    make character SUBJ="an orc shaman with bone jewelry and a gnarled staff"
+    -> mesh 246.1 s
+    -> NOT_A_CHARACTER: the predicted skeleton is not a humanoid
+       "nothing above the root, so this is not a standing figure"
+
+Nathan's read was that the reference was not a T-pose. Looking at the image, the
+pose is fine — full body, front view, arms clear of the torso. The reference
+contains **three subjects**: the orc, a staff spanning a third of the frame, and
+a floating head vignette in the top-left corner.
+
+The vignette is caused by my own plate text, `"game character reference sheet"`.
+That phrase invites the conventions of a reference sheet: callout busts,
+multiple views, prop breakouts. It survived the warrior because that subject
+happened to render as one figure. TRELLIS reconstructs **one volume from one
+image**, so every extra disconnected subject corrupts the result and the rig
+correctly refuses what comes out.
+
+Plate replaced with `"single figure alone, centred, isolated on a plain white
+background, no text, no logo, no additional views, no inset portraits"`.
+
+### The expensive part was finding out four minutes late
+
+The rig knew within seconds. The pipeline spent 246 s meshing something that
+could never rig. `tools/refcheck.py` now answers the same question from the
+reference alone, in about a second, by flood-filling the background from the
+border and counting what is left:
+
+    orc      2 subjects   [0] 24.7% figure   [1] 0.4% bbox=[148,32,208,132]
+    warrior  1 subject    [0] 17.1%
+
+`make character` runs it between the image and mesh stages and stops with a
+re-roll suggestion rather than proceeding.
+
+**Known limitation, stated rather than discovered later:** the check finds
+*disconnected* subjects. The staff touches the orc's hand, so it merges into
+blob 0 and passes. A held prop that leaves the silhouette while staying
+connected is still a reconstruction problem and this will not catch it — the
+bbox widening to 900 px is the only hint. Subjects for reconstruction should
+avoid held props regardless.
+
+### Deferred by Nathan
+
+opencode UAT is deferred; seeing the contract answer is enough to close CUJ-01
+for now. He is not running the 25-minute suite.
