@@ -90,6 +90,12 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("image")
     ap.add_argument("--max-subjects", type=int, default=1)
+    # A clean single-subject reference can still be too small to reconstruct.
+    # Known-good warrior: 442x948 = 419k subject pixels, meshed well.
+    # Known-bad orc:      278x472 = 131k subject pixels, meshed to a garbled
+    # blob that the rig then refused. 250k is between them and is a guess from
+    # two data points, not a measured threshold -- it warns, it does not reject.
+    ap.add_argument("--min-subject-px", type=int, default=250_000)
     ap.add_argument("--quiet", action="store_true")
     a = ap.parse_args()
     w, h, blobs = analyse(a.image)
@@ -97,6 +103,15 @@ if __name__ == "__main__":
         print(f"{w}x{h}  significant subjects: {len(blobs)}")
         for i, b in enumerate(blobs):
             print(f"  [{i}] {b['frac']*100:5.1f}% of frame  bbox={b['bbox']}")
+    if blobs:
+        x0, y0, x1, y1 = blobs[0]["bbox"]
+        area = (x1-x0) * (y1-y0)
+        if area < a.min_subject_px:
+            print(f"WARNING: the subject is {x1-x0}x{y1-y0} = {area//1000}k pixels. "
+                  f"A reference this small reconstructs poorly -- a 131k-pixel orc "
+                  f"produced a garbled mesh where a 419k-pixel warrior did not. "
+                  f"Regenerate with IMGSIZE=1024, or crop tighter.", file=sys.stderr)
+
     if len(blobs) > a.max_subjects:
         print(f"REJECT: {len(blobs)} disconnected subjects. TRELLIS reconstructs one "
               f"volume per image, so the extras corrupt the mesh and the rig will "
