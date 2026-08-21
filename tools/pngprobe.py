@@ -22,12 +22,11 @@ def probe(path):
     if ctype != 6 or bitdepth != 8:
         return out
     raw = zlib.decompress(idat)
-    stride = w * 4 + 1
-    # Row 0 filter byte is raw[0]; first pixel starts at raw[1]. Filter type 0
-    # (None) is what these encoders emit for row 0 in practice; anything else
-    # and we decline to guess rather than report a wrong number.
-    if raw[0] != 0:
-        return out
+    # For the FIRST pixel of row 0 every PNG filter reduces to the raw bytes:
+    # the left neighbour and the row above are both zero, so Sub, Up, Average
+    # and Paeth all add nothing. So the corner alpha is readable regardless of
+    # which filter the encoder chose. An earlier version bailed unless the
+    # filter was None and reported "unknown" on perfectly readable files.
     out["corner_alpha"] = raw[4]
     return out
 

@@ -19,7 +19,7 @@ def klein(subject, seed):
       "10":{"class_type":"LoraLoaderModelOnly","inputs":{"model":["1",0],"lora_name":"pixel-art-klein.safetensors","strength_model":1.0}},
       "2":{"class_type":"CLIPLoader","inputs":{"clip_name":"qwen_3_4b.safetensors","type":"flux2"}},
       "3":{"class_type":"VAELoader","inputs":{"vae_name":"flux2-vae.safetensors"}},
-      "4":{"class_type":"CLIPTextEncode","inputs":{"text":f"pixel art sprite, {subject}, game asset, transparent background, 16-bit pixel art","clip":["2",0]}},
+      "4":{"class_type":"CLIPTextEncode","inputs":{"text":f"pixel art sprite, {subject}, game asset, 16-bit pixel art, on a plain solid magenta background, flat magenta backdrop, no shadow","clip":["2",0]}},
       "5":{"class_type":"CLIPTextEncode","inputs":{"text":"","clip":["2",0]}},
       "6":{"class_type":"EmptyFlux2LatentImage","inputs":{"width":512,"height":512,"batch_size":1}},
       "7":{"class_type":"KSampler","inputs":{"model":["10",0],"seed":seed,"steps":4,"cfg":1.0,
@@ -32,7 +32,7 @@ def sdxl(subject, seed):
     return {
       "1":{"class_type":"CheckpointLoaderSimple","inputs":{"ckpt_name":"sd_xl_base_1.0.safetensors"}},
       "10":{"class_type":"LoraLoaderModelOnly","inputs":{"model":["1",0],"lora_name":"pixel-art-xl.safetensors","strength_model":1.0}},
-      "4":{"class_type":"CLIPTextEncode","inputs":{"text":f"pixel art, {subject}, game asset sprite","clip":["1",1]}},
+      "4":{"class_type":"CLIPTextEncode","inputs":{"text":f"pixel art, {subject}, game asset sprite, on a plain solid magenta background, flat magenta backdrop, no shadow","clip":["1",1]}},
       "5":{"class_type":"CLIPTextEncode","inputs":{"text":"blurry, photorealistic, 3d render","clip":["1",1]}},
       "6":{"class_type":"EmptyLatentImage","inputs":{"width":1024,"height":1024,"batch_size":1}},
       "7":{"class_type":"KSampler","inputs":{"model":["10",0],"seed":seed,"steps":8,"cfg":2.0,
@@ -71,6 +71,7 @@ ap=argparse.ArgumentParser(); ap.add_argument("track",choices=["klein","sdxl"])
 ap.add_argument("--host",default="127.0.0.1:8188"); ap.add_argument("--seed",type=int,default=424242)
 ap.add_argument("--only",help="run a single subject by key")
 ap.add_argument("--out",help="copy the produced images into this directory")
+ap.add_argument("--key",action="store_true",help="key the background to real alpha")
 a=ap.parse_args()
 build = klein if a.track=="klein" else sdxl
 subjects = {a.only: SUBJECTS[a.only]} if a.only else SUBJECTS
@@ -80,5 +81,13 @@ for subject_key, subject in subjects.items():
     line=f"{a.track:<6} {subject_key:<8} {dt:7.1f} s" + (f"  ERROR {err}" if err else "")
     if a.out and not err:
         got=fetch(a.host, f"AB-{a.track}-{subject_key}", a.out)
+        if got and a.key:
+            # Neither track emits alpha: the VAE returns three channels. The
+            # background is keyed here, deterministically, from a colour the
+            # prompt asked for.
+            import subprocess, os
+            keyed=got.replace(".png","-keyed.png")
+            subprocess.run(["python3","tools/key_bg.py",got,keyed],capture_output=True)
+            got=keyed if os.path.exists(keyed) else got
         line += f"  -> {got}" if got else "  (no image found)"
     print(line, flush=True)

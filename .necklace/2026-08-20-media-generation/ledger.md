@@ -636,3 +636,47 @@ corner pixel — failed on the first run and produced this. The eye could not ha
 caught it and neither could a benchmark. It is the clearest case so far for
 tests that check a fact rather than an impression, and it landed on a claim I
 had already stated confidently to the user.
+
+## 2026-08-21 — Background keying, built because the plan had assumed it away
+
+Correcting the alpha claim left a real gap: sprites need transparency and
+nothing in the pipeline produced it. Two routes existed.
+
+**The ComfyUI node route did not survive contact.** `ImageColorToMask` +
+`JoinImageWithAlpha` produced a uniform mask — everything transparent with an
+invert, everything opaque without. The reason was visible only by looking at the
+image: asked for "solid magenta", the model paints a deep pink near #E8146E, not
+#FF00FF, so an exact colour match found nothing. I had been reasoning about
+node semantics when the input was the problem.
+
+**The deterministic route works and is `tools/key_bg.py`.** Sample the corner
+colour, flood fill inward from the border with a tolerance, write RGBA. Stdlib
+only, no model, no network, ~3 s end to end including generation.
+
+    512x512   transparent 209958/262144 = 80.1%   color_type=6  corner_alpha=0
+
+Flood fill from the edges rather than a global colour test, because a sprite may
+legitimately contain the background colour — a pink gem, a red cape — and a
+global test punches holes in it. The cost is visible in the output: a small pink
+cluster survives at the knight's hip, background colour enclosed by the
+silhouette where the fill cannot reach. That is the right trade and it is a
+known residue rather than a surprise.
+
+This also satisfies the hard principle rather than bending it. Keying adds no
+pixels and changes no colours; it recovers the field the prompt asked for. It is
+the "grid recovery" class of post-step, not a style filter.
+
+### The prompt changed too
+
+"transparent background" is what produced painted checkerboards, so both tracks
+now ask for a plain solid magenta field. That is a keyable input by
+construction, and it is why the A/B remains fair: both tracks get the same
+treatment.
+
+### Five tests, and one of them exists to pin a mistake
+
+`tests/m01-sprite.bats` asserts that the **raw** generator output is colour type
+2 — no alpha. That looks like testing a defect, and it is deliberate: the claim
+that these models emit RGBA is plausible, is printed on the model card, and is
+wrong. If a future model does emit alpha, that test fails, which is the correct
+way to be told.
