@@ -11,7 +11,7 @@ TESTS     ?= tests
 
 .PHONY: help setup test test-isolation harness-up harness-down clean \
         media-up media-down asset viewer sprite rig llm-up llm-down status stop-all \
-        faces-ladder ref character prompt require-subj require-img
+        faces-ladder ref character prompt refcheck require-subj require-img
 
 help:                    ## Show this help
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -104,12 +104,18 @@ require-subj:
 
 ref: require-subj media-up  ## Character reference sheet only.  SUBJ="an orc shaman"
 	@trap '$(MAKE) --no-print-directory media-down' EXIT; \
-	python3 tools/character.py --subject "$(SUBJ)" --seed $(CHARSEED) --size $(RES)
+	img=$$(python3 tools/character.py --subject "$(SUBJ)" --seed $(CHARSEED) --size $(RES) | jq -r .image); \
+	echo "reference: $$img"; python3 tools/refcheck.py "$$img" || true
+
+refcheck:                ## Is a reference image one connected subject?  IMG=path
+	@python3 tools/refcheck.py "$(IMG)"
 
 character: require-subj media-up  ## Reference -> mesh -> rigged GLB.  SUBJ="an orc shaman"
 	@trap '$(MAKE) --no-print-directory media-down' EXIT; \
 	img=$$(python3 tools/character.py --subject "$(SUBJ)" --seed $(CHARSEED) --size 1024 | jq -r .image); \
 	echo "reference: $$img"; \
+	python3 tools/refcheck.py "$$img" || { \
+	  echo "stopping before the mesh stage; re-roll with CHARSEED=$$((($(CHARSEED))+1))"; exit 3; }; \
 	glb=$(OUT)/$$(basename "$$img" .png).glb; \
 	python3 tools/mesh.py "$$img" "$$glb" --resolution 1024 --target-faces $(FACES) --seed $(CHARSEED); \
 	echo "mesh: $$glb"; \

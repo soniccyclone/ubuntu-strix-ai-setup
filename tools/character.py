@@ -21,7 +21,15 @@ import argparse, json, os, subprocess, time, urllib.request, uuid
 
 POSE  = ("full body, standing straight, arms slightly away from body, "
          "T-pose, front view")
-PLATE = "plain white background, game character reference sheet"
+
+# NOT "game character reference sheet". That phrase invites the conventions of
+# a reference sheet -- callout busts, multiple views, prop breakouts -- and an
+# orc shaman prompt produced a floating head vignette in the corner alongside
+# the figure. TRELLIS reconstructs ONE volume from ONE image, so every extra
+# disconnected subject corrupts the mesh, and the rig then reports
+# NOT_A_CHARACTER because the result is not a standing figure.
+PLATE = ("single figure alone, centred, isolated on a plain white background, "
+         "no text, no logo, no additional views, no inset portraits")
 
 def graph(prompt, seed, width, height, steps, cfg, prefix):
     return {
