@@ -5,3 +5,6 @@
 .beads-credential-key
 .beads/proxieddb/
 *.gate.lock*
+
+# npm deps for the glTF validator used by the mesh tests
+node_modules/
