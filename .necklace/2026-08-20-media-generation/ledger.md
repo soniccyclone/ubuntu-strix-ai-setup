@@ -287,3 +287,49 @@ already provide.
 
 The open item from cycle 1 — "if the gap closes, the second machine is
 unnecessary" — is closed in that direction.
+
+## 2026-08-21 — Pixel-art LoRA works, and it is the answer his own plan asked for
+
+`Limbicnation/pixel-art-lora`, rank-64 on FLUX.2-klein-4B, ships a ComfyUI-format
+LoRA (325 MB) alongside the diffusers one. At the documented settings — 512
+square, 4 steps, cfg 1.0, euler, strength 1.0 — with the trigger phrasing from
+its card:
+
+    "pixel art sprite, a brave knight in shining armor holding a sword,
+     game asset, transparent background, 16-bit pixel art"
+
+    20.1 s including the LoRA load
+
+Output kept at `repl/pixel-knight-512-lora1.0.png`. It is a real sprite:
+deliberate pixels, hard edges, a silhouette that reads at sprite size, and
+**genuine RGBA transparency** rather than a white field to be cut out later.
+
+This is the thing his 08-pixel-art-plan called for and could not find. That
+document's hard principle was that style must be generated and never
+post-applied, that the only legal post-step is grid recovery of pixels the model
+already composed, and that the way to get a specific style is a style-trained
+LoRA. It then listed only SDXL candidates on Civitai, because in August nothing
+existed for klein.
+
+Two advantages over the Track S winner (SDXL + Pixel-Art-XL) that are structural
+rather than aesthetic:
+
+  - native transparency, so no background-removal stage
+  - the same 4B model that serves the 3D pipeline's image stage, so one model
+    and one set of weights covers both tracks
+
+Not yet a verdict. The Aug-9 call was made by human eval on matched subjects,
+and that method is the right one. This establishes only that Track F exists,
+runs in 20 s, and clears the hard principle.
+
+Caveat worth carrying into the A/B: the output is pixel-art *style* at 512, not
+a 1:1 sprite grid. Grid recovery via PixelArt-Detector is still needed, exactly
+as his plan specified. The pipeline he designed holds; only the generator moved.
+
+### Container died mid-probe, exit 143
+
+ComfyUI took a SIGTERM 13 minutes in, with 108 GiB free, so not OOM. Cause
+unidentified. Its log confirms the probe-7 numbers independently — prompt
+execution of 28.71 s, then 10.50 s, then 10.67 s — so nothing measured is in
+doubt. Restarted with `--restart=unless-stopped`. If it recurs, find the sender
+rather than restarting again.
