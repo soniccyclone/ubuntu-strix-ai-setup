@@ -11,7 +11,7 @@ TESTS     ?= tests
 
 .PHONY: help setup test test-isolation harness-up harness-down clean \
         media-up media-down asset viewer sprite rig llm-up llm-down status stop-all \
-        faces-ladder ref character prompt
+        faces-ladder ref character prompt require-subj require-img
 
 help:                    ## Show this help
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -86,13 +86,14 @@ rig: media-up            ## Rig a humanoid GLB.  make rig GLB=out/foo.glb
 SUBJ    ?=
 CHARSEED ?= 100000
 
-ref: media-up            ## Character reference sheet only.  SUBJ="an orc shaman"
-	@test -n "$(SUBJ)" || { echo 'usage: make ref SUBJ="an orc shaman with a gnarled staff"'; exit 2; }
+require-subj:
+	@test -n "$(SUBJ)" || { echo 'usage: make $(MAKECMDGOALS) SUBJ="an orc shaman with a gnarled staff"'; exit 2; }
+
+ref: require-subj media-up  ## Character reference sheet only.  SUBJ="an orc shaman"
 	@trap '$(MAKE) --no-print-directory media-down' EXIT; \
 	python3 tools/character.py --subject "$(SUBJ)" --seed $(CHARSEED) --size $(RES)
 
-character: media-up      ## Reference -> mesh -> rigged GLB.  SUBJ="an orc shaman"
-	@test -n "$(SUBJ)" || { echo 'usage: make character SUBJ="an orc shaman with a gnarled staff"'; exit 2; }
+character: require-subj media-up  ## Reference -> mesh -> rigged GLB.  SUBJ="an orc shaman"
 	@trap '$(MAKE) --no-print-directory media-down' EXIT; \
 	img=$$(python3 tools/character.py --subject "$(SUBJ)" --seed $(CHARSEED) --size 1024 | jq -r .image); \
 	echo "reference: $$img"; \
@@ -107,8 +108,10 @@ prompt:                  ## Show the prompt a subject would produce, run nothing
 
 LADDER ?= 2000 8000 20000 60000
 
-faces-ladder:            ## Mesh ONE image at several budgets so you can compare.  IMG=path
+require-img:
 	@test -n "$(IMG)" || { echo 'usage: make faces-ladder IMG=path/to/reference.png'; exit 2; }
+
+faces-ladder: require-img  ## Mesh ONE image at several budgets to compare.  IMG=path
 	@$(MAKE) --no-print-directory media-up
 	@trap '$(MAKE) --no-print-directory media-down' EXIT; \
 	for f in $(LADDER); do \
