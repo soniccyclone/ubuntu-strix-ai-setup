@@ -7,6 +7,9 @@ half turns a temporary workaround into permanent folklore.
 
 Nothing here is a fork. The upstream checkouts are unmodified except as listed.
 
+**Nothing here gets reported upstream.** Defects found in third-party projects
+are documented and worked around locally, and that is the entire response.
+
 ---
 
 ## 1. `hec-ovi/text-to-3D-skill` — rig layer built against the wrong base
