@@ -29,9 +29,13 @@ harness-up:              ## Start the containerised test harness
 harness-down:            ## Stop the containerised test harness
 	@./harness/suite.sh down
 
-test: harness-up         ## Run every test
+# Seven of these files hit the media services on 8188/8189/8191. Without
+# media-up they passed only when something else happened to have started them,
+# which is how a suite starts lying about what it covered.
+test: harness-up media-up  ## Run every test
 	@shopt -s nullglob; files=($(TESTS)/*.bats); \
 	if [ $${#files[@]} -eq 0 ]; then echo "0 tests"; exit 0; fi; \
+	trap '$(MAKE) --no-print-directory media-down' EXIT; \
 	$(BATS) "$${files[@]}"
 
 test-isolation: harness-up ## Run only the isolation boundary tests
