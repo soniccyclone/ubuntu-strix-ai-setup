@@ -509,3 +509,51 @@ not carry over. Markers now reflect the exit code.
 venv left uv's flag behind as a positional argument to pip, so the build tried
 to install the interpreter as a package. The flag and its value had to go
 together. Redone from a saved copy of the original rather than patched further.
+
+## 2026-08-21 — Full text-to-3D pipeline runs end to end (probe 11)
+
+Rig service up **unprivileged**. Their compose asks for `privileged: true`; it is
+not needed here — `--device=/dev/kfd --device=/dev/dri --group-add keep-groups`
+is sufficient, as probe 3 established. Startup log:
+
+    [rig] model loaded in 4.1s, attention sdpa
+    [rig] device AMD Radeon 8060S Graphics
+    {"ready": true}
+
+"attention sdpa" is their flash-attn shim doing its job: SkinTokens imports
+`flash_attn_interface` with no fallback, and the container supplies a stand-in
+backed by torch SDPA rather than editing upstream.
+
+    rig, 12,732 vertices        11.2 s
+    skill published, ~11k       13.0 s
+
+Output validates clean, 34 Mixamo-named joints, `idle` and `walk` clips.
+
+### The whole pipeline, measured on this machine
+
+    stage                         published        here
+    image, 1024                     514.6 s        18.1 s
+    mesh, 1024, 12k faces           345.3 s       402.9 s
+    rig, ~12k vertices               13.0 s        11.2 s
+    total                         ~872 s (14.5m)  432 s (7.2m)
+
+Half the time, on a laptop, with no CUDA, no Blender and no second machine.
+The image stage went from 59% of the run to 4%.
+
+### Three ports the rig layer needed, none of them subtle
+
+The layer is written against the sibling `comfyui-strix-docker` image. Against
+the kyuz0 toolbox, which is the one this cycle calibrated, three things break:
+`apt-get` (Fedora has dnf), `/app/.venv` (this base uses `/opt/venv`), and `uv`
+(absent). All mechanical.
+
+The fourth is not mechanical: **`open3d` publishes no wheel for Python 3.13**,
+which this base ships. It is imported lazily in exactly two SkinTokens
+functions, `parser/bpy.py` and `info/asset.py`, and the toolkit reaches neither
+because it feeds meshes through the npz loader rather than bpy. Omitting it
+builds and rigs correctly. If some path ever reaches it the ImportError will
+name the file, which is a better failure than not building.
+
+That is the same manoeuvre the toolkit already performs for flash-attn and bpy:
+read the source, find that the blocker is packaging rather than computation, and
+route around it without forking upstream.
