@@ -63,3 +63,43 @@ Their bandwidth model assumes ~190-200 GB/s sustained read. Cycle 1 measured
 Their figure is self-consistent with their own results, so it is probably right
 for the GPU, but it is their measurement on their machine and this cycle should
 not lean on it.
+
+## 2026-08-22 — The fork's build script cannot build for this machine (probe 1)
+
+`./build_engine.sh --static` fails at configure:
+
+    CMake Error at CMakeDetermineHIPCompiler.cmake:197
+      Failed to find ROCm root directory.
+    Call Stack: ggml/src/ggml-hip/CMakeLists.txt:43 (enable_language)
+
+`-DGGML_HIP=ON` is hardcoded at `build_engine.sh:143` and there is no flag to
+turn it off. The `--rocm-only|--no-vulkan` switch does the opposite of what a
+Vulkan-only machine needs: it disables **Vulkan** and keeps HIP.
+
+So the project requires a full ROCm toolchain to build, on a machine where its
+own headline feature is "Mesa RADV Wave64 Cooperative Matrix" and where Vulkan
+is the backend cycle 1 measured as faster for decode. Building without ROCm is
+a supported configuration in substance and an unsupported one in their script.
+
+Worked around by invoking cmake directly with the same flag set minus HIP.
+
+### Containerised, at Nathan's suggestion
+
+`harness/Containerfile.rocmfpx` pins the engine at commit
+`0fc9568e07ccc8553010864cb8db1957e629cbfa` — verified as the actual checkout
+before writing it down, since the outer project's HEAD is a different commit
+(`70b6689`) and confusing the two would pin the wrong thing.
+
+Two deliberate departures from their build:
+
+  - **`GGML_HIP=OFF`**, per above.
+  - **`GGML_NATIVE=OFF`**, where theirs is ON. Native bakes the build host's CPU
+    features into the binary, which is right for a tuned local build and wrong
+    for an image meant to be reproducible. This costs some CPU-side performance
+    and buys a benchmark that means the same thing on another machine. The
+    numbers this cycle produces are GPU-bound anyway.
+
+There is also a prebuilt tarball in their releases with a published SHA. Not
+used: the engine source is a third repository (`charlie12345/ROCmFPX`), and
+building from source we can pin is cheaper to trust than a binary we cannot
+inspect.

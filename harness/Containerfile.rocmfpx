@@ -1,0 +1,46 @@
+# ROCmFPX engine — a llama.cpp fork that can load ROCmFP4 quantisations.
+#
+# Built Vulkan-only. The upstream build_engine.sh hardcodes -DGGML_HIP=ON with
+# no flag to disable it (its --rocm-only switch turns Vulkan OFF, not HIP), so
+# on a machine without ROCm the configure step dies at
+#   CMakeDetermineHIPCompiler.cmake: Failed to find ROCm root directory
+# even though the engine's headline feature is Mesa RADV Wave64. We invoke
+# cmake directly with the same flags minus HIP.
+#
+# Pinned to the commit the project requires. A moving target here would silently
+# change what the benchmark measured.
+FROM docker.io/library/ubuntu:24.04
+
+ARG PINNED_COMMIT=0fc9568e07ccc8553010864cb8db1957e629cbfa
+ARG REPO=https://github.com/charlie12345/ROCmFPX.git
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      build-essential cmake git ca-certificates \
+      glslc libvulkan-dev spirv-headers ninja-build \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN git clone --filter=blob:none "$REPO" /src \
+ && git -C /src checkout --detach "$PINNED_COMMIT" \
+ && git -C /src rev-parse HEAD > /pinned-commit.txt
+
+# Same flags as build_engine.sh, with GGML_HIP off. GGML_NATIVE is deliberately
+# OFF: it bakes in the build host's CPU features, and this image is meant to be
+# reproducible rather than tuned to whichever machine built it.
+RUN cmake -S /src -B /build -G Ninja \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DGGML_NATIVE=OFF \
+      -DGGML_HIP=OFF \
+      -DGGML_VULKAN=ON \
+      -DGGML_VULKAN_CHECK_RESULTS=OFF \
+      -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_F16C=ON -DGGML_FMA=ON \
+      -DGGML_BACKEND_DL=OFF -DBUILD_SHARED_LIBS=OFF \
+      -DLLAMA_BUILD_WEBUI=OFF \
+      -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+ && cmake --build /build --target llama-cli llama-server llama-bench -j"$(nproc)" \
+ && mkdir -p /engine && cp /build/bin/llama-cli /build/bin/llama-server /build/bin/llama-bench /engine/ \
+ && rm -rf /build /src
+
+# Models are mounted read-only at /models; nothing is baked in.
+VOLUME /models
+WORKDIR /engine
+ENTRYPOINT ["/engine/llama-bench"]
