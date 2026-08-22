@@ -14,9 +14,14 @@ FROM docker.io/library/ubuntu:24.04
 ARG PINNED_COMMIT=0fc9568e07ccc8553010864cb8db1957e629cbfa
 ARG REPO=https://github.com/charlie12345/ROCmFPX.git
 
+# libvulkan-dev is BUILD-time headers. mesa-vulkan-drivers is the RADV ICD the
+# loader needs at RUN time -- without it /usr/share/vulkan/icd.d is empty, no
+# device is enumerated, and llama-bench silently reports backend=CPU. That is a
+# 4x-slow result that looks like a real measurement, which is worse than an error.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       build-essential cmake git ca-certificates \
       glslc libvulkan-dev spirv-headers ninja-build \
+      mesa-vulkan-drivers libvulkan1 \
  && rm -rf /var/lib/apt/lists/*
 
 RUN git clone --filter=blob:none "$REPO" /src \

@@ -117,3 +117,51 @@ performance investigation is backwards.
 
 Both restored to upstream's values: `GGML_NATIVE=ON`, `GGML_AVX512=ON`. Zen 5
 has AVX-512, so dropping it was a real loss and not a theoretical one.
+
+## 2026-08-22 — My container reported CPU numbers as if they were GPU numbers (probe 2)
+
+First ROCmFP4 run came back at **2.94 tg128** against a published 14.02, with
+`backend: CPU` in the table. I was one step from writing that down as "the
+fork's quant does not work on Vulkan".
+
+Nathan: "This is custom built for my literal machine so you are definitely the
+one who is wrong." Correct. A control run settled it in one command — stock
+Q4_K_M through the same container also reported **CPU**, so the fault was mine
+and not the quant's.
+
+    /usr/share/vulkan/icd.d/    NO ICD DIRECTORY
+    libvulkan.so.1              present
+    /dev/dri/renderD128         present
+
+`libvulkan-dev` is build-time headers. **`mesa-vulkan-drivers` is the RADV ICD
+the loader needs at run time**, and I never installed it in the image. Device
+nodes present, loader present, no driver behind it — so llama-bench enumerated
+nothing and fell back to CPU.
+
+That failure mode is worse than an error: it produces a plausible-looking table
+with a `backend` column nobody reads carefully, four times slow, and invites
+exactly the wrong conclusion about someone else's work.
+
+After adding `mesa-vulkan-drivers libvulkan1`:
+
+    ggml_vulkan: 0 = Radeon 8060S Graphics (RADV GFX1151) (radv) | uma: 1 ...
+
+### The real numbers
+
+    stock Q4_K_M    b10502 Vulkan  15.65 GiB  192.0 pp512  12.23 tg128
+    stock Q4_K_M    fork, Vulkan   15.65 GiB  162.8 pp128  11.24 tg32
+    ROCmFP4-FAST    fork, Vulkan   13.55 GiB  202.1 pp512  11.91 tg128
+
+    published: stock 12.27, ROCmFP4 unassisted 14.02
+
+Our stock baseline reproduces theirs almost exactly — **12.23 against 12.27**,
+0.3% apart. That is the strongest evidence available that the measurement setup
+is now sound.
+
+ROCmFP4 unassisted comes in at **11.91** against their 14.02. It wins clearly on
+prefill (202 against 192) and is marginally *slower* on decode, on 13.4% less
+data. Their 14.02 was measured on a HIP build; this is Vulkan. The quant loads
+and runs GPU-accelerated on Vulkan, which their documentation does not promise.
+
+**Speculation is still untested**, and it remains the whole case: 11.91 is worse
+than the 59.6 tok/s MoE already serving `fast`.
