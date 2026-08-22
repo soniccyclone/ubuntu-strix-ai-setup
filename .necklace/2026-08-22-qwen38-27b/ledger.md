@@ -165,3 +165,68 @@ and runs GPU-accelerated on Vulkan, which their documentation does not promise.
 
 **Speculation is still untested**, and it remains the whole case: 11.91 is worse
 than the 59.6 tok/s MoE already serving `fast`.
+
+## 2026-08-22 — ROCm in a container, which is where it belonged (probe 3)
+
+I spent several rounds leading Nathan toward installing ROCm on the host. It went
+badly and he stopped it:
+
+  - Distro ROCm 7.1 (105 packages, 2.77 GB) gave a working **runtime** — rocminfo
+    enumerates gfx1151, rocBLAS ships `*_fallback_gfx1151.hsaco` — but no working
+    HIP **compiler**. Ubuntu's clang-21 has no ROCm device-math implementation:
+    308 errors on `fabsf`, `fmaxf`, `powf`, `max`, `min`.
+  - AMD publishes no suite for 26.04 (`repo.radeon.com/.../dists/` has jammy and
+    noble only), so their noble packages collide with the distro's: Ubuntu numbers
+    `rocm-cmake` 7.1.1 against AMD's 0.14.0, and 24 dependencies fail at once.
+  - Resolving that needs a priority-1001 apt pin to force downgrades across the
+    overlapping set, plus hand-copying noble `libxml2`/`libicu` `.so` files into
+    `/opt/rocm-7.2.2/lib` because ROCm's `lld` links against sonames 26.04 does
+    not ship.
+
+Nathan: "Ok you are clearly leading me down a path that's about to mess up my
+machine... What exactly is this for anyways? Inference or compilation? Because if
+it's just compiling... we can JUST USE PODMAN."
+
+That is the right question and the right answer. ROCm is needed for both, but
+**both can live in a container**, and cycle 2 already proved rootless podman
+reaches gfx1151 unprivileged. On a noble base every problem above evaporates:
+AMD's repo is a first-class target there, so no pin, no shims, no collision.
+
+    ggml_rocm_init: found 1 ROCm devices (Total VRAM: 112640 MiB)
+    Device 0: Radeon 8060S Graphics, gfx1151 (0x1151), VMM: no, Wave Size: 32
+
+The host kept nothing. Everything Nathan ran is in `docs/privileged-steps.md`
+with rollbacks, including the pin and the `.so` shims marked as proposed and
+never run.
+
+I had containerised the Vulkan build an hour earlier and still did not see it.
+The requirement was never "install ROCm"; it was "a process with ROCm must touch
+the GPU", which this repo had already solved twice.
+
+### Two container bugs, both silent until run time
+
+**No RADV ICD.** `libvulkan-dev` is build headers; `mesa-vulkan-drivers` is the
+driver. Without it the Vulkan image enumerated nothing and llama-bench reported
+`backend: CPU` at 2.94 tg — a plausible table that nearly became a published
+claim about someone else's quantisation.
+
+**Shared libraries copied without their symlinks.** `find -type f -exec cp`
+took `libllama-common.so.0.0.244` and left `libllama-common.so.0`, which is what
+the loader resolves. `cp -a` fixes it. The build reported success both times.
+
+### The numbers
+
+    stock Q4_K_M    b10502 Vulkan   15.65 GiB   192.0 pp512   12.23 tg128
+    stock Q4_K_M    fork Vulkan     15.65 GiB   162.8 pp128   11.24 tg32
+    ROCmFP4-FAST    fork Vulkan     13.55 GiB   202.1 pp512   11.91 tg128
+    ROCmFP4-FAST    fork ROCm/HIP   13.55 GiB   242.7 pp512   12.80 tg128
+
+    published: stock 12.27, ROCmFP4 unassisted 14.02, +MTP 30.56-36.04
+
+HIP beats Vulkan on this quant: **+20.1% prefill** (242.7 vs 202.1) and **+7.5%
+decode** (12.80 vs 11.91). That is close to cycle 1's cited expectation of ROCm
+winning prefill by roughly a fifth — now measured here rather than quoted.
+
+Decode at 12.80 is still short of their 14.02 and far short of the 59.6 tok/s MoE
+already serving `fast`. **MTP speculation remains the whole case, and is still
+untested.**

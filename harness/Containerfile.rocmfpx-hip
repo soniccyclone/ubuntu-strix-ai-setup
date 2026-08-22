@@ -29,6 +29,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       | gpg --dearmor -o /usr/share/keyrings/rocm.gpg \
  && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/rocm.gpg] \
 https://repo.radeon.com/rocm/apt/${ROCM_VER} noble main" > /etc/apt/sources.list.d/rocm.list \
+ # Even on noble, universe carries its own hipcc (5.7.1-3) which collides with
+ # AMD's (1.1.1.70202). Pinning AMD's origin above everything resolves it.
+ # This is safe HERE precisely because it is a throwaway container -- the same
+ # pin on the host would have downgraded ~24 system packages, which is why we
+ # are not doing this on the host.
+ && printf 'Package: *\nPin: origin repo.radeon.com\nPin-Priority: 1001\n' \
+      > /etc/apt/preferences.d/rocm-amd \
  && apt-get update \
  && apt-get install -y --no-install-recommends rocm-hip-sdk rocwmma-dev \
  && rm -rf /var/lib/apt/lists/*
@@ -57,9 +64,18 @@ RUN export HIPCXX="$(hipconfig -l)/clang" HIP_PATH="$(hipconfig -R)" \
       -DLLAMA_BUILD_WEBUI=OFF -DGGML_BUILD_TESTS=OFF -DLLAMA_BUILD_TESTS=OFF \
  && cmake --build /build --target llama-bench llama-server llama-cli -j"$(nproc)" \
  && mkdir -p /engine \
+ # Their recommended config is BUILD_SHARED_LIBS=ON, so the binaries need the
+ # .so files beside them. Copying only the executables produced
+ #   error while loading shared libraries: libllama-common.so.0
  && cp /build/bin/llama-bench /build/bin/llama-server /build/bin/llama-cli /engine/ \
+ # cp -a preserves soname symlinks. `-type f -exec cp` copied only the
+ # versioned files (libllama-common.so.0.0.244) and dropped the symlink the
+ # loader actually resolves (libllama-common.so.0), so the binary still
+ # failed at run time long after the build reported success.
+ && cp -a /build/bin/*.so* /engine/ \
  && rm -rf /build /src
 
+ENV LD_LIBRARY_PATH=/engine:/opt/rocm/lib
 VOLUME /models
 WORKDIR /engine
 ENTRYPOINT ["/engine/llama-bench"]
