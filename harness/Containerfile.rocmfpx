@@ -23,16 +23,20 @@ RUN git clone --filter=blob:none "$REPO" /src \
  && git -C /src checkout --detach "$PINNED_COMMIT" \
  && git -C /src rev-parse HEAD > /pinned-commit.txt
 
-# Same flags as build_engine.sh, with GGML_HIP off. GGML_NATIVE is deliberately
-# OFF: it bakes in the build host's CPU features, and this image is meant to be
-# reproducible rather than tuned to whichever machine built it.
+# Same flags as build_engine.sh, with GGML_HIP off.
+#
+# GGML_NATIVE stays ON, as upstream has it. This image is a TUNED build for
+# this machine, not a portable artifact -- it targets Zen 5 and gfx1151 because
+# that is the hardware it serves. The container exists to pin the engine commit
+# and its build dependencies so the build is reproducible, not to make the
+# binary runnable elsewhere. Rebuild it on different silicon.
 RUN cmake -S /src -B /build -G Ninja \
       -DCMAKE_BUILD_TYPE=Release \
-      -DGGML_NATIVE=OFF \
+      -DGGML_NATIVE=ON \
       -DGGML_HIP=OFF \
       -DGGML_VULKAN=ON \
       -DGGML_VULKAN_CHECK_RESULTS=OFF \
-      -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_F16C=ON -DGGML_FMA=ON \
+      -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_AVX512=ON -DGGML_F16C=ON -DGGML_FMA=ON \
       -DGGML_BACKEND_DL=OFF -DBUILD_SHARED_LIBS=OFF \
       -DLLAMA_BUILD_WEBUI=OFF \
       -DCMAKE_POSITION_INDEPENDENT_CODE=ON \

@@ -103,3 +103,17 @@ There is also a prebuilt tarball in their releases with a published SHA. Not
 used: the engine source is a third repository (`charlie12345/ROCmFPX`), and
 building from source we can pin is cheaper to trust than a binary we cannot
 inspect.
+
+### Correction: the build is tuned for this machine, not portable
+
+I set `GGML_NATIVE=OFF` and dropped `GGML_AVX512`, reasoning that an image
+should reproduce elsewhere. Nathan: this **is** a tuned build for this machine.
+
+He is right and the reasoning was imported from a different problem. The
+container's job here is to pin the engine commit and its build dependencies so
+the build is repeatable — not to make the binary runnable on other silicon.
+Portability was a goal nobody set, and paying CPU performance for it on a
+performance investigation is backwards.
+
+Both restored to upstream's values: `GGML_NATIVE=ON`, `GGML_AVX512=ON`. Zen 5
+has AVX-512, so dropping it was a real loss and not a theoretical one.
