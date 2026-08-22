@@ -22,3 +22,5 @@ rig	SkinTokens	fp16	-	warm	-	11.2	12,732 vertices, 46 joints, idle and walk
 context	Qwen3.5-122B-A10B	Q4_K_M	32768	resident	-	0	this box: 76.0 GiB GTT with weights+KV
 context	Qwen3.5-122B-A10B	Q4_K_M	131072	resident	-	0	this box: 78.5 GiB GTT
 context	Qwen3.5-122B-A10B	Q4_K_M	262144	resident	-	0	this box: 81.9 GiB GTT, full native window
+llm	Qwen3.8-27B-ROCmFP4-FAST	ROCmFP4	32768	HIP, no spec	-	12.7	this box: tok/s, deterministic, 3 runs identical
+llm	Qwen3.8-27B-ROCmFP4-FAST	ROCmFP4	32768	HIP, MTP n_max=4 strict	-	22.7	this box: tok/s, +78% over no-spec

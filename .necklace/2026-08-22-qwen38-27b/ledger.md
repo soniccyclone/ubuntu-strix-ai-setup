@@ -230,3 +230,55 @@ winning prefill by roughly a fifth — now measured here rather than quoted.
 Decode at 12.80 is still short of their 14.02 and far short of the 59.6 tok/s MoE
 already serving `fast`. **MTP speculation remains the whole case, and is still
 untested.**
+
+## 2026-08-22 — MTP speculation is real: +78% decode (probe 4)
+
+`llama-bench` never speculates, so this needed `llama-server` and real requests.
+The fork's own `run_server.sh` translates its `MTP=1` default into:
+
+    --spec-type draft-mtp --spec-draft-n-max 4 --spec-draft-p-min 0.0
+    --spec-mtp-strict-qwen        (when STRICT_MTP=1)
+
+The MTP head lives inside the ROCmFP4 GGUF, so there is no separate draft model.
+
+Matched A/B — identical container, model, flags, prompt and deterministic
+sampling (temperature 0, top_p 1, top_k 0), three runs each. Token counts were
+identical within each arm, which confirms the determinism:
+
+    speculation OFF   365 tok   12.7, 12.7, 12.7 tok/s
+    MTP + strict      348 tok   22.8, 22.5, 22.7 tok/s
+
+**+78.0%.** That settles the question cycle 1 left open when the 122B HALO quant
+was benchmarked with its MTP head switched off: on this hardware, MTP
+speculation is worth a large, repeatable gain, and any benchmark that cannot
+exercise it understates an MTP-carrying model badly.
+
+### Against their published figures
+
+    published stock                12.27      measured 12.23 (b10502 Vulkan)
+    published ROCmFP4 unassisted   14.02      measured 12.70 (HIP, server)
+    published ROCmFP4 + MTP     30.56-36.04   measured 22.7  (HIP, server)
+
+The stock baseline reproduces to 0.3%, so the harness is sound. The speculation
+arm reaches 63-74% of their claimed range. Their number is an aggregate over a
+164-task coding suite at 262,144 context with an 8 GiB prompt cache and 32
+context checkpoints; this is one prompt at 32,768 with no cache. Acceptance rate
+drives speculative throughput and varies by workload, so the gap is plausible
+without either measurement being wrong — but it is a gap, and it is theirs to
+explain rather than mine to close.
+
+### A failure that told me exactly how to fix it
+
+    E srv load_model: Qwen strict MTP requires a single server slot/sequence;
+      restart with -np 1 or use --no-spec-mtp-strict-qwen
+
+Named the constraint, the flag, and the alternative. Worth contrasting with the
+two silent container failures earlier today, which reported success and produced
+wrong numbers.
+
+### Still to do
+
+Kairic Edge is the other IU4 release and needs a *different* fork
+(`ciru-ai/ROCmFPX`, branch `kairic-edge-qwen38-27b-v1.1`) plus a patched
+Composable Kernel, and claims 47.73 aggregate. Same containerised approach
+applies. 122B is shelved at Nathan's direction.
