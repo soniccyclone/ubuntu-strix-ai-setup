@@ -27,7 +27,7 @@ if __name__ == "__main__":
     ap.add_argument("image"); ap.add_argument("out")
     ap.add_argument("--endpoint", default="http://127.0.0.1:8189")
     ap.add_argument("--seed", type=int, default=42)
-    ap.add_argument("--resolution", type=int, default=512)
+    ap.add_argument("--resolution", type=int, default=1024)  # match the Makefile; 512 is what produced a garbled mesh
     ap.add_argument("--target-faces", type=int)
     ap.add_argument("--timeout", type=int, default=4000)
     a = ap.parse_args()

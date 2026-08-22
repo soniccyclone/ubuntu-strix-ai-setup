@@ -13,6 +13,27 @@ import argparse, json, sys, time, urllib.request
 
 DIM, RESET = "\033[2m", "\033[0m"
 
+def model_context(host, model):
+    """Ask the server what this model's window actually is.
+
+    A hardcoded ceiling is the same trap one size up: it was 1200, which
+    returned pure reasoning and no answer, and a bigger constant would just
+    move the failure. llama-swap does not proxy /props at the top level but
+    does expose /upstream/<model>/props, which reports the real n_ctx for
+    whatever is configured -- so switching roles needs no code change.
+
+    Returns None when the model is not loaded or the endpoint is unavailable;
+    the caller then falls back rather than failing.
+    """
+    try:
+        with urllib.request.urlopen(
+                f"http://{host}/upstream/{model}/props", timeout=20) as r:
+            d = json.loads(r.read())
+        n = (d.get("default_generation_settings") or {}).get("n_ctx") or d.get("n_ctx")
+        return int(n) if n else None
+    except Exception:
+        return None
+
 def stream(host, model, prompt, max_tokens, show_thinking):
     body = json.dumps({
         "model": model, "max_tokens": max_tokens, "stream": True,
@@ -66,7 +87,21 @@ if __name__ == "__main__":
     ap.add_argument("prompt", nargs="+")
     ap.add_argument("--model", default="fast")
     ap.add_argument("--host", default="127.0.0.1:8080")
-    ap.add_argument("--max-tokens", type=int, default=1200)
+    # Default is "whatever this model's window is", asked at run time.
+    ap.add_argument("--max-tokens", type=int, default=0,
+                    help="0 = ask the server for this model's context size")
     ap.add_argument("--hide-thinking", action="store_true")
     a = ap.parse_args()
-    stream(a.host, a.model, " ".join(a.prompt), a.max_tokens, not a.hide_thinking)
+    limit = a.max_tokens
+    if limit <= 0:
+        n = model_context(a.host, a.model)
+        if n:
+            # Leave the prompt room inside the same window.
+            limit = max(1024, n - 8192)
+            print(f"{DIM}[{a.model}: {n} token window, allowing {limit} out]{RESET}",
+                  file=sys.stderr)
+        else:
+            limit = 32768
+            print(f"{DIM}[{a.model}: window unknown (not loaded?), allowing {limit} out]{RESET}",
+                  file=sys.stderr)
+    stream(a.host, a.model, " ".join(a.prompt), limit, not a.hide_thinking)
