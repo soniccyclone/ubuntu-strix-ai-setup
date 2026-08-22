@@ -83,3 +83,80 @@ sudo ufw disable
 
 `ufw` was inactive before any of this, so disabling returns the machine to where
 it started.
+
+---
+
+## 4. Vulkan/shader build dependencies (done, 2026-08-22)
+
+**Why.** Needed to compile the ROCmFPX engine's Vulkan shaders. `build-essential`,
+`git` and `mesa-vulkan-drivers` were already present.
+
+```
+sudo apt install -y cmake glslc libvulkan-dev spirv-headers
+```
+
+**Verify.** `command -v cmake glslc` returns both.
+
+**Rollback.** `sudo apt remove --purge cmake glslc libvulkan-dev spirv-headers && sudo apt autoremove`
+Harmless to keep; these are ordinary build tools.
+
+---
+
+## 5. Distro ROCm 7.1 runtime (done, 2026-08-22)
+
+**Why.** To test whether Ubuntu 26.04's own ROCm packaging supports gfx1151.
+It does — `rocminfo` enumerates `gfx1151`, and rocBLAS ships
+`TensileLibrary_*_fallback_gfx1151.hsaco`. 105 packages.
+
+```
+sudo apt install -y rocm-dev hipcc rocm-smi libamdhip64-dev libhipblas-dev
+```
+
+**Verify.** `rocminfo | grep gfx1151` prints the target.
+
+**What it does NOT give you.** A working HIP *compiler*. Ubuntu's clang-21 has no
+ROCm device-math implementation, so compiling HIP source fails with 308 errors —
+unresolved `fabsf`, `fmaxf`, `powf`, `max`, `min`. The runtime works; the
+toolchain does not.
+
+**Rollback.**
+```
+sudo apt remove --purge rocm-dev hipcc rocm-smi libamdhip64-dev libhipblas-dev && sudo apt autoremove
+```
+Safe to keep either way — it is a working runtime and touches nothing else.
+
+---
+
+## 6. AMD ROCm apt repository — ADDED, THEN NOT USED (2026-08-22)
+
+**Why it was added.** To get `rocm-llvm` / `amdclang++`, the compiler the distro
+packages lack.
+
+```
+wget -qO - https://repo.radeon.com/rocm/rocm.gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/rocm.gpg
+echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/7.2.2 noble main' | sudo tee /etc/apt/sources.list.d/rocm.list
+sudo apt update
+sudo apt install -y rocm-hip-sdk rocwmma-dev        # <-- FAILED, installed nothing
+```
+
+**The install failed and nothing from AMD's repo is on the system.** Ubuntu
+numbers `rocm-cmake` 7.1.1 while AMD numbers it 0.14.0, so apt prefers the
+distro's and AMD's exact-version dependencies cannot resolve — 24 packages
+unsatisfied at once.
+
+**A pin was proposed and NOT run.** Priority 1001 to force downgrades across the
+overlapping set. Nathan stopped it, correctly: it would have downgraded ~24
+system packages to satisfy a build requirement, and it was unnecessary — the
+build belongs in a container where AMD's repo is a first-class target.
+
+**Rollback — run this if the container path works:**
+```
+sudo rm -f /etc/apt/sources.list.d/rocm.list /usr/share/keyrings/rocm.gpg
+sudo apt update
+```
+Nothing else to undo; no AMD package was installed. Check with
+`apt list --installed 2>/dev/null | grep 70202` — empty means clean.
+
+**Also never run:** the libxml2 and libicu74 shims that copy noble `.so` files
+into `/opt/rocm-7.2.2/lib`. They were quoted from a community setup guide but
+never executed, and `/opt/rocm-7.2.2` does not exist on this machine.
