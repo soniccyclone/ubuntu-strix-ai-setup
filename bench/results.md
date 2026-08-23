@@ -104,3 +104,33 @@ backend it was made for.
 
 Both are cheap to settle and neither is settled. The homogeneous quant takes the
 deep role for now on the strength of the only comparison actually run.
+
+## Qwen3.8-27B — Kairic Edge IU4 vs ROCmFP4, served, MTP on
+
+One driver, three arms, same three prompts at 384 tokens, greedy, warmup
+discarded, `-c 32768`, MTP speculation on everywhere.
+Script: `.necklace/2026-08-22-qwen38-27b/repl/kairic-bench.sh`.
+
+| arm | mean tok/s | vs ROCmFP4 | serves tool calls |
+| --- | ---: | ---: | --- |
+| Kairic Edge, greedy argmax fast path | **19.62** | +25.7% | no |
+| Kairic Edge, compatibility mode | **16.70** | +7.0% | yes |
+| ROCmFP4-FAST | **15.61** | — | yes |
+
+The fast path buys 14.9% by refusing any request that needs host logits: tool
+calls, temperature above zero, grammar, and logprobs all return 400. It fails
+closed rather than degrading quality, which is the right choice, but it means
+the configuration behind the published 47.73 aggregate cannot serve an agent.
+
+Compatibility mode serves everything except `response_format: json_schema`,
+which 400s with a sampler-init fault specific to this branch; `json_object`,
+raw GBNF and the `tools:` path all work, so agents are unaffected in practice.
+
+Prompt Forge was verified to route rather than fall back — the logs show
+`v_wmma_i32_16x16x16_iu4` and all three sidecars initialized. The IU4 lane
+covers 2-to-5-row shapes (MTP verification), not M1 decode, which is why
+prefill gains are large and decode gains are single-digit.
+
+Both engines are containerized: `harness/Containerfile.kairic` (ciru-ai fork,
+`release/kairic-edge-qwen38-27b-v1.1`, patched Composable Kernel) and
+`harness/Containerfile.rocmfpx-hip`. Nothing is installed on the host.
