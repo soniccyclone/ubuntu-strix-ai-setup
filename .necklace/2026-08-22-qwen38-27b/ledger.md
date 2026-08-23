@@ -410,3 +410,75 @@ is not published so it may simply decode faster than a red-black tree.
 Not chased further, because it does not change the decision. Every arm here ran
 under one driver on one machine, and against the alternative we actually have,
 Kairic gives +7.0% in the only configuration that can serve a tool call.
+
+## Correction: the Kairic numbers above are wrong, and here is why
+
+The 19.62 / 16.70 / 15.61 table was a bad measurement presented as a verdict.
+Three defects, in descending order of how much damage they did:
+
+**1. Wrong workload.** Three prose-and-C prompts, then compared against an
+aggregate over a coding suite. Speed on this model is dominated by MTP draft
+acceptance, which is a property of how predictable the output is. Measured
+here: HumanEval accepts 76.2% of drafts, discursive prose accepts 46-47%. The
+card's own table said this plainly — prose slice 34.88 against HumanEval slice
+48.78 — and I quoted that table without registering what it meant.
+
+**2. Unmatched arms.** Kairic got `--spec-draft-backend-sampling` and
+`--spec-draft-p-min 0.0`; ROCmFP4 got neither, so its drafts were being
+rejected. Kairic also ran `--reasoning off` via its runner while ROCmFP4 did
+not, so ROCmFP4 was generating 3950 tokens of chain-of-thought against Kairic's
+1621 for the same ten tasks. The tell was there and I missed it: the new
+ROCmFP4 figure (15.61) came in *below* my own earlier hand measurement of the
+same model (22.7), which should have stopped the writeup cold.
+
+**3. No acceptance instrumentation.** A speculative-decoding number without an
+acceptance rate does not say whether speculation happened. It is the first
+thing to record, not an afterthought.
+
+### Re-measured: HumanEval 0-9, against the card's published hot slice
+
+Driven through the vendor's own `scripts/run-kairic-edge-gfx1151.sh` so flag
+transcription cannot be the explanation, at its release defaults (262144
+context, `--cache-ram 8192`, `-ctxcp 32`, `--cache-idle-slots`). ROCmFP4 given
+the identical speculation and reasoning settings. Script:
+`repl/kairic-humaneval.sh`.
+
+| arm | cold | hot | tokens | draft accept |
+|---|---:|---:|---:|---:|
+| Kairic, fast path | 40.03 | **56.72** | 1621 | 76.2% |
+| Kairic, compatibility mode | 28.41 | **41.89** | 1621 | 76.2% |
+| ROCmFP4-FAST, matched | 24.35 | **22.21** | 1612 | 95.7% |
+
+Card's published HumanEval 0-9 hot slice: 48.78. We measured 56.72. The claim
+is not merely reproducible on this machine, it is beaten.
+
+    Kairic fast path vs ROCmFP4    2.55x   (+155%)
+    Kairic compatibility vs ROCmFP4 1.89x   (+88.6%)
+    fast path vs compatibility      1.35x   (+35.4%)
+
+Compatibility mode is the one that serves tool calls, and it is still nearly
+twice ROCmFP4. The earlier finding that compatibility mode costs 14.9% was also
+wrong; on this workload it costs 26%, and it is worth paying.
+
+### The mechanism is verification speed, not acceptance
+
+ROCmFP4 accepts 95.7% of its drafts and is still 2.5x slower. Kairic accepts
+fewer and wins anyway, which means the gain is in how fast it verifies a draft
+batch. That is exactly the IU4 lane, which `promptforge_init` reports as
+covering `decode_rows:[2,3,4,5]` — MTP verification shapes. The architecture
+claim and the measurement agree.
+
+### What did not explain anything
+
+The release configuration. Prose re-run under the full vendor config gives
+16.77 / 20.97 / 16.53 against the original 15.33 / 19.49 / 15.28. The 262K
+context and 8 GiB prompt cache are worth almost nothing on fresh single
+generations with no shared prefix. It was the workload the whole time.
+
+### Still open
+
+On prose we land near 17-21 tok/s against the card's natural-prose slice of
+34.88, so roughly half. Their prose slice content is not published and ours is
+adversarially unpredictable, which plausibly covers it, but this is not settled
+and should not be written up as settled. It does not affect the coding result,
+which was measured against a defined task set and exceeded.
