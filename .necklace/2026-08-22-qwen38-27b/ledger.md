@@ -329,3 +329,84 @@ produces the headline number cannot serve the agent suite this repo exists to
 run. `KAIRIC_EDGE_COMPATIBILITY_MODE=1` lifts the restriction, which makes the
 compatibility arm the number that decides whether this model is usable here.
 Measuring both.
+
+### Correction to the paragraph above
+
+I wrote that no-grammar meant the agent suite could not run. That was reasoning
+from the source without testing it, and it was too strong. Measured behaviour:
+
+| capability | fastpath (their default) | compatibility mode | ROCmFP4 |
+|---|---|---|---|
+| plain greedy completion | yes | yes | yes |
+| tool calls (`tools:`) | **400** | yes | yes |
+| temperature > 0 | **400** | yes | yes |
+| raw GBNF `grammar` | **400** | yes | yes |
+| `response_format: json_object` | **400** | yes | yes |
+| `response_format: json_schema` | **400** | **400** | yes |
+| logprobs | **400** | yes | yes |
+
+Compatibility mode serves everything an agent needs except one path. The
+restriction belongs to the fast path, not to the fork.
+
+The `json_schema` failure is separate and survives compatibility mode. It
+returns `Failed to initialize samplers: std::exception` (400), not the argmax
+message, so it is a distinct fault in this branch's JSON-schema-to-GBNF path.
+Base ROCmFPX serves the same request, so it arrived with Kairic. Workaround:
+`json_object` plus raw GBNF both work, and opencode and goose reach tool calls
+through the `tools:` path, which is fine. Retest if a later release changes the
+sampler init; nothing to do until then.
+
+### Prompt Forge really did route
+
+Worth confirming before trusting any of it, because Prompt Forge is documented
+to fail closed to the plain GGUF, which would look like a slow result rather
+than an error. It routed:
+
+    promptforge_init      wmma=v_wmma_i32_16x16x16_iu4  device_bytes=8576856064
+    promptforge_gdn_init  qkvz_iu4_hadamard  layers=48
+    promptforge_gdn_output_init  output_iu4  layers=48
+    Kairic Edge: enabled
+
+The native IU4 instruction is genuinely in the loop. So is MTP.
+
+Note `decode_rows:[2,3,4,5]`. The IU4 lane engages on 2-to-5-row shapes, which
+are MTP verification batches, and the card states plainly that M1 decode is not
+native IU4. Single-token decode therefore picks up IU4 only indirectly, through
+whatever MTP verification accepts. That is the mechanism behind a large prefill
+gain and a small decode gain, and it is consistent with what we measured.
+
+### Results — one driver, three arms, same prompts
+
+`repl/kairic-bench.sh`. Three prompts (systems prose, a red-black tree in C,
+a hardware comparison), 384 tokens each, greedy, one warmup discarded, MTP on
+in every arm. The earlier 22.7 tok/s ROCmFP4 figure was taken by hand on
+different prompts, so it was re-measured here rather than quoted.
+
+| arm | tok/s (3 prompts) | mean | vs ROCmFP4 | usable by agents |
+|---|---|---:|---:|---|
+| Kairic, fast path | 17.99 / 23.53 / 17.36 | **19.62** | +25.7% | **no** |
+| Kairic, compatibility | 15.33 / 19.49 / 15.28 | **16.70** | +7.0% | yes |
+| ROCmFP4-FAST | 14.88 / 17.45 / 14.50 | **15.61** | — | yes |
+
+The fast path is worth 14.9% over compatibility mode, and it costs tool calls,
+sampling, grammar and logprobs to get it.
+
+### On the 47.73
+
+The card's headline is an aggregate over a 164-task coding suite at 262,144
+context with an 8 GiB prompt cache, `--cache-idle-slots` and `-ctxcp 32`, on a
+workload full of repeated prefixes where that cache cuts prompt time by
+98.39–99.87%. We measured 19.62 at 32,768 context, no cache allocation, three
+unrelated prompts. Those are different questions and the gap is mostly the
+question, not the answer.
+
+Their own single-generation rows are the fair comparator, and we still land
+under them: forced-512 prose 30.87, natural prose 34.88 against our 19.62, so
+63.6% of the closest published slice. Unexplained. Candidates we did not
+separate: the prompt-cache allocation may help even without prefix reuse, 262K
+context may change the KV layout in their favour, and their prose slice content
+is not published so it may simply decode faster than a red-black tree.
+
+Not chased further, because it does not change the decision. Every arm here ran
+under one driver on one machine, and against the alternative we actually have,
+Kairic gives +7.0% in the only configuration that can serve a tool call.
