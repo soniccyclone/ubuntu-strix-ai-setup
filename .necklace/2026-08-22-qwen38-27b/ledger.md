@@ -482,3 +482,50 @@ On prose we land near 17-21 tok/s against the card's natural-prose slice of
 adversarially unpredictable, which plausibly covers it, but this is not settled
 and should not be written up as settled. It does not affect the coding result,
 which was measured against a defined task set and exceeded.
+
+## Operational notes the correction above skipped
+
+Two failures cost real time and neither is obvious from the outside.
+
+**The ROCmFP4 image entrypoint is `llama-bench`, not `llama-server`.** Passing
+server flags to it prints a usage block and exits, and under `podman run -d
+--rm` the container is gone before you can read the log, so the arm just
+reports "container died". Any `podman run` against `localhost/rocmfpx-hip` that
+wants the server must pass `--entrypoint /engine/llama-server`. To see why a
+`--rm -d` container died at all, re-run it in the foreground without `-d`;
+otherwise the evidence deletes itself.
+
+**`LLAMA_MTP_CPU_ARGMAX_FASTPATH=1` aborts the server at startup unless
+`--spec-draft-backend-sampling` and `--spec-draft-p-min 0.0` are both set.**
+The abort is a `ggml_abort` with a backtrace, not a friendly message:
+
+    speculative.cpp:1003: MTP CPU argmax fast path requires backend sampling and p_min=0
+
+The vendor runner sets both, so this only bites when hand-assembling flags —
+which is the argument for driving their `run-kairic-edge-gfx1151.sh` rather
+than transcribing it.
+
+## What is verified and what is not
+
+**Verified on this machine:** decode throughput, draft acceptance, that Prompt
+Forge routes rather than falling back, which request shapes each mode serves,
+and artifact integrity by SHA-256.
+
+**Not verified:** output correctness. The HumanEval prompts were used as a
+throughput workload only. Completions were never executed against the test
+suite, so the card's 158/164 Base and 152/164 Plus are unchecked here, as is
+any claim that IU4 preserves quality against the stock Q4_K_M. Nothing measured
+in this cycle would detect a model that generates fluent wrong code quickly.
+Settling it means executing model-generated code, which belongs in a throwaway
+container with no network and no host mounts, not on the daily driver.
+
+**Not compared:** stock Q4_K_M under MTP with matched settings. It lost on
+llama-bench without speculation (12.23 tg128), and MTP is unlikely to reorder a
+gap this size, but "unlikely" is not "measured".
+
+## Kairic is not wired into anything yet
+
+`config/llama-swap.yaml` still points every role at
+`~/.local/opt/llama.cpp-vulkan/llama-b10502/llama-server`, and the Makefile has
+no Kairic target. The engine exists only as `localhost/kairic:v1.1` plus the
+repl scripts. Using it day to day needs a launch path; nothing here creates one.
