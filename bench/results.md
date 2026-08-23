@@ -107,29 +107,43 @@ deep role for now on the strength of the only comparison actually run.
 
 ## Qwen3.8-27B — Kairic Edge IU4 vs ROCmFP4, served, MTP on
 
-One driver, three arms, same three prompts at 384 tokens, greedy, warmup
-discarded, `-c 32768`, MTP speculation on everywhere.
-Script: `.necklace/2026-08-22-qwen38-27b/repl/kairic-bench.sh`.
+HumanEval tasks 0-9, chat-adapted, greedy, 512-token cap. Kairic launched via
+the vendor's `scripts/run-kairic-edge-gfx1151.sh` at release defaults (262144
+context, 8 GiB prompt cache, `-ctxcp 32`, `--cache-idle-slots`); ROCmFP4 given
+identical speculation and reasoning settings. Script:
+`.necklace/2026-08-22-qwen38-27b/repl/kairic-humaneval.sh`.
 
-| arm | mean tok/s | vs ROCmFP4 | serves tool calls |
-| --- | ---: | ---: | --- |
-| Kairic Edge, greedy argmax fast path | **19.62** | +25.7% | no |
-| Kairic Edge, compatibility mode | **16.70** | +7.0% | yes |
-| ROCmFP4-FAST | **15.61** | — | yes |
+| arm | cold tok/s | hot tok/s | draft accept | serves tool calls |
+| --- | ---: | ---: | ---: | --- |
+| Kairic Edge, greedy argmax fast path | 40.03 | **56.72** | 76.2% | no |
+| Kairic Edge, compatibility mode | 28.41 | **41.89** | 76.2% | yes |
+| ROCmFP4-FAST, matched settings | 24.35 | **22.21** | 95.7% | yes |
 
-The fast path buys 14.9% by refusing any request that needs host logits: tool
-calls, temperature above zero, grammar, and logprobs all return 400. It fails
-closed rather than degrading quality, which is the right choice, but it means
-the configuration behind the published 47.73 aggregate cannot serve an agent.
+Kairic's published HumanEval 0-9 hot slice is 48.78 tok/s. This machine
+measured 56.72 — the vendor claim reproduces and is exceeded.
 
-Compatibility mode serves everything except `response_format: json_schema`,
-which 400s with a sampler-init fault specific to this branch; `json_object`,
-raw GBNF and the `tools:` path all work, so agents are unaffected in practice.
+    Kairic fast path vs ROCmFP4      2.55x  (+155%)
+    Kairic compatibility vs ROCmFP4  1.89x  (+88.6%)
+    fast path vs compatibility       1.35x  (+35.4%)
 
-Prompt Forge was verified to route rather than fall back — the logs show
-`v_wmma_i32_16x16x16_iu4` and all three sidecars initialized. The IU4 lane
-covers 2-to-5-row shapes (MTP verification), not M1 decode, which is why
-prefill gains are large and decode gains are single-digit.
+Compatibility mode is the configuration to run: it serves tool calls,
+temperature, grammar and logprobs, and still nearly doubles ROCmFP4. The fast
+path refuses all of those, so its extra 35% is not reachable from an agent.
+`response_format: json_schema` fails in both Kairic modes with a sampler-init
+fault specific to this branch; `json_object`, raw GBNF and the `tools:` path
+all work, so agents are unaffected.
+
+**The gain is verification speed, not acceptance.** ROCmFP4 accepts 95.7% of
+drafts and is still 2.5x slower. Kairic accepts fewer and wins, because its
+IU4 lane covers `decode_rows:[2,3,4,5]` — MTP verification batches. M1 decode
+is not native IU4 and the vendor does not claim it is.
+
+**Throughput on this model tracks MTP draft acceptance, which tracks how
+predictable the output is.** Code accepts 76.2% and runs at 56.72; discursive
+prose accepts 46-47% and runs at 16.8-21.0. Quote a figure with its workload
+or the figure means nothing. An earlier revision of this file reported 19.62
+for Kairic from prose prompts with unmatched ROCmFP4 settings; that number was
+measuring prose and is superseded by the table above.
 
 Both engines are containerized: `harness/Containerfile.kairic` (ciru-ai fork,
 `release/kairic-edge-qwen38-27b-v1.1`, patched Composable Kernel) and
