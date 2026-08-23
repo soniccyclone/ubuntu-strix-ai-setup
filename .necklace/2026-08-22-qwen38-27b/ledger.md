@@ -282,3 +282,50 @@ Kairic Edge is the other IU4 release and needs a *different* fork
 (`ciru-ai/ROCmFPX`, branch `kairic-edge-qwen38-27b-v1.1`) plus a patched
 Composable Kernel, and claims 47.73 aggregate. Same containerised approach
 applies. 122B is shelved at Nathan's direction.
+
+## Kairic Edge — reading the runner before trusting the number
+
+Their README says `git checkout kairic-edge-qwen38-27b-v1.1`. That ref does not
+resolve. The real branches carry a `release/` prefix:
+`release/kairic-edge-qwen38-27b-v1` (`e97b3246`) and
+`release/kairic-edge-qwen38-27b-v1.1` (`e1da26bb`). Built from the latter.
+
+All four artifacts verified. The card's published SHA-256 values match
+HuggingFace's own LFS object ids exactly, and the downloaded sidecars match
+both:
+
+| artifact | bytes | sha256 verified |
+|---|---:|---|
+| `Qwen3.8-27B-IU4-Kairic-Edge.gguf` | 16,617,792,672 | `360caf73…` |
+| `Qwen3.8-27B-Kairic-IU4-FFN.pfs` | 8,576,856,064 | `adcbb90a…` OK |
+| `Qwen3.8-27B-Kairic-IU4-GDN.pfs` | 2,019,569,664 | `82f93131…` OK |
+| `Qwen3.8-27B-Kairic-IU4-GDN-Output.pfs` | 756,953,088 | `3b07e7b1…` OK |
+
+### Their 47.73 is a speculation number, not a raw decode number
+
+`scripts/run-kairic-edge-gfx1151.sh` passes `--spec-type draft-mtp` by default.
+So the aggregate figure already includes MTP. Compared against our own MTP arm
+(22.7 tok/s on ROCmFP4), not the 12.7 unspeculated baseline. Comparing it to
+12.7 would credit Kairic with speculation we already measured separately.
+
+### The fast path buys speed by refusing work
+
+The runner defaults `KAIRIC_EDGE_COMPATIBILITY_MODE=0`, which sets
+`LLAMA_TARGET_GREEDY_ARGMAX_FASTPATH=1`. The GPU argmax omits the host logits
+array entirely, so anything that needs logits cannot be served. To their
+credit it throws instead of silently degrading (`server-task.cpp:629-692`), but
+the accepted request shape is narrow: temperature 0, top_k 0 or 1, top_p 1,
+min_p 0, no penalties, single completion, and none of
+
+- grammar or grammar triggers
+- logit bias
+- `n_probs` / post-sampling probabilities
+- LoRA
+- a reasoning budget
+
+No grammar is the one that bites. opencode and goose both lean on
+JSON-schema-constrained output for tool calls, so the configuration that
+produces the headline number cannot serve the agent suite this repo exists to
+run. `KAIRIC_EDGE_COMPATIBILITY_MODE=1` lifts the restriction, which makes the
+compatibility arm the number that decides whether this model is usable here.
+Measuring both.

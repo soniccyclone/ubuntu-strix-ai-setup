@@ -1,0 +1,75 @@
+# Kairic Edge runtime — a second ROCmFPX fork with a native IU4 lane.
+#
+# Separate image from rocmfpx-hip on purpose: different fork (ciru-ai, not
+# charlie12345), different branch, and it needs a patched Composable Kernel that
+# the other build does not. Sharing one image would mean one of the two engines
+# was not the thing its publisher tested.
+#
+# Noble base for the same reason as the other HIP image: AMD publishes ROCm for
+# noble and not for the host's 26.04, so building here avoids an apt pin that
+# would downgrade ~24 host packages and a set of hand-copied .so shims.
+FROM docker.io/library/ubuntu:24.04
+
+ARG ROCM_VER=7.2.2
+# Their README says `git checkout kairic-edge-qwen38-27b-v1.1`. The actual ref
+# is release/kairic-edge-qwen38-27b-v1.1 -- the bare name does not resolve.
+ARG KAIRIC_REF=release/kairic-edge-qwen38-27b-v1.1
+ARG CK_COMMIT=fdf4bb7fcc984811cef48ce817d89aac064b984a
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates curl gnupg build-essential cmake git ninja-build \
+      pkg-config libssl-dev python3 \
+ && curl -fsSL https://repo.radeon.com/rocm/rocm.gpg.key \
+      | gpg --dearmor -o /usr/share/keyrings/rocm.gpg \
+ && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/rocm.gpg] \
+https://repo.radeon.com/rocm/apt/${ROCM_VER} noble main" > /etc/apt/sources.list.d/rocm.list \
+ && printf 'Package: *\nPin: origin repo.radeon.com\nPin-Priority: 1001\n' \
+      > /etc/apt/preferences.d/rocm-amd \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends rocm-hip-sdk rocwmma-dev \
+ && rm -rf /var/lib/apt/lists/*
+
+ENV ROCM_PATH=/opt/rocm
+ENV PATH=/opt/rocm/bin:$PATH
+
+RUN git clone https://github.com/ciru-ai/ROCmFPX.git /src \
+ && git -C /src checkout "$KAIRIC_REF" \
+ && git -C /src rev-parse HEAD > /kairic-commit.txt
+
+# Composable Kernel at their pinned commit, with their gfx1151 IU4 patch. This
+# is what supplies the V_WMMA_I32_16X16X16_IU4 path the release is built around.
+RUN git clone https://github.com/ROCm/composable_kernel.git /src/third_party/composable_kernel \
+ && git -C /src/third_party/composable_kernel checkout "$CK_COMMIT" \
+ && git -C /src/third_party/composable_kernel apply /src/patches/composable-kernel-gfx1151-iu4.patch
+
+# Flags verbatim from their README, including the two HIP defines. HIPCXX comes
+# from ROCm's own clang; the host's clang-21 has no ROCm device-math library and
+# fails with 308 unresolved builtins.
+RUN export CC=/usr/bin/gcc CXX=/usr/bin/g++ \
+ && HIP_COMPILER="$( [ -x /opt/rocm/bin/amdclang++ ] && echo /opt/rocm/bin/amdclang++ || echo /opt/rocm/llvm/bin/clang++ )" \
+ && cmake -S /src -B /build -G Ninja \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_C_COMPILER="$CC" -DCMAKE_CXX_COMPILER="$CXX" \
+      -DCMAKE_HIP_COMPILER="$HIP_COMPILER" \
+      -DCMAKE_HIP_FLAGS='-DGGML_ROCMFPX_RDNA35_MMID_MAX_BATCH=5 -DGGML_ROCMFPX_MOE_MMVQ_ROWS_PER_BLOCK=4' \
+      -DCMAKE_PREFIX_PATH=/opt/rocm \
+      -DBUILD_SHARED_LIBS=ON \
+      -DGGML_CPU=ON -DGGML_OPENMP=ON -DGGML_HIP=ON -DGGML_CUDA=OFF \
+      -DGGML_VULKAN=OFF -DGGML_HIP_FORCE_MMQ=ON -DGGML_HIP_GRAPHS=ON \
+      -DGGML_HIP_MMQ_MFMA=ON -DGGML_HIP_NO_VMM=ON \
+      -DGGML_HIP_ROCWMMA_FATTN=OFF -DGGML_NATIVE=ON \
+      -DAMDGPU_TARGETS=gfx1151 -DGPU_BUILD_TARGETS=gfx1151 \
+      -DPROMPTFORGE_CK_ROOT=/src/third_party/composable_kernel \
+      -DLLAMA_BUILD_WEBUI=OFF \
+      -DGGML_BUILD_TESTS=OFF -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_SERVER=ON \
+ && cmake --build /build --target llama-server llama-bench -j"$(nproc)" \
+ && mkdir -p /engine \
+ && cp /build/bin/llama-server /build/bin/llama-bench /engine/ \
+ # cp -a, not `find -type f`: the soname symlinks matter and copying only the
+ # versioned files produced a run-time loader failure on the other image.
+ && cp -a /build/bin/*.so* /engine/ 2>/dev/null || true
+
+ENV LD_LIBRARY_PATH=/engine:/opt/rocm/lib
+VOLUME /models
+WORKDIR /engine
+ENTRYPOINT ["/engine/llama-server"]
