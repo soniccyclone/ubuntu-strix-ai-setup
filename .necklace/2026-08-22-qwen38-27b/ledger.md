@@ -529,3 +529,90 @@ gap this size, but "unlikely" is not "measured".
 `~/.local/opt/llama.cpp-vulkan/llama-b10502/llama-server`, and the Makefile has
 no Kairic target. The engine exists only as `localhost/kairic:v1.1` plus the
 repl scripts. Using it day to day needs a launch path; nothing here creates one.
+
+## Serving configuration: Kairic at full context, with compaction alongside
+
+Three artifacts: `config/llama-swap-kairic.yaml`,
+`systemd/llama-swap-kairic.service`, `config/opencode-kairic.json`, plus
+`make kairic-install / kairic-up / kairic-down`.
+
+### Context is 262144 and that is the model's real ceiling
+
+`qwen35.context_length` in the GGUF header is 262144 for both the 27B and the
+4B, and the running server reports `n_ctx: 262144` through
+`/upstream/code/props`. Nothing is being extended with rope tricks.
+
+### Why compaction needs its own model, and which knob actually selects it
+
+`small_model` does not drive compaction. opencode resolves the compaction model
+at `packages/opencode/src/session/compaction.ts:358-361`:
+
+    const agent = yield* agents.get("compaction")
+    const model = agent.model ? getModel(agent.model...) : getModel(userMessage.model...)
+
+So it uses the *main* model unless the built-in `compaction` agent has one set.
+The knob is `agent.compaction.model`, confirmed against the published schema,
+which also exposes `title` and `summary` agents. `small_model` is set too, but
+it is the weaker guarantee and would not have worked on its own.
+
+`limit.context: 262144` on the model is what opencode measures against to
+decide when to compact, so it has to be the truth or compaction fires at the
+wrong time — too early wastes the window, too late overflows it.
+
+### Choosing the compaction model
+
+`empero-ai/Qwen3.8-4B-Distill-GGUF` at Q8_0, 4.29 GiB on disk. Same `qwen35`
+hybrid architecture as the 27B, so its 262144 window is cheap for the same
+reason the 27B's is: mostly Gated DeltaNet blocks with constant state.
+
+Q8_0 on a 4B in preference to Q4 on a 9B. A compaction summary is written once
+and then silently conditions every later turn, so an error there is both
+expensive and invisible. Spend the bits where the mistakes cannot be seen.
+
+Its context matches `code` exactly. opencode hands compaction a transcript
+nearly as large as the main window, so a smaller window here would fail exactly
+when compaction became necessary.
+
+Measured at 262144: 14 GiB resident, 1025 tok/s prefill, 34.0 tok/s generation.
+Prefill is what matters for compaction, since the job is mostly reading — and
+1025 tok/s beats the 27B's own prefill, so the small model is the faster
+compactor as well as the cheaper one. `-ctk q8_0 -ctv q8_0` drops it to 11 GiB
+for about 3% throughput if the memory is ever needed.
+
+### Measured footprint, end to end
+
+    baseline idle                    13 GiB used
+    code + compact both resident     74 GiB used, 48 GiB free
+    after `make kairic-down`         13 GiB used, 109 GiB free
+
+61 GiB for the pair, which matches the 46 + 14 measured separately. **48 GiB
+free is tighter than it looks** — a 234-job C++ build on this machine took
+42.5 GiB, and 74 + 42.5 is 116 of 122. It fits, with little to spare. Levers,
+in order of preference: `CACHE_RAM=8192` down to 4096 frees 4 GiB, q8_0 KV on
+`compact` frees 3 GiB, then the 2B distill instead of the 4B frees another 2.
+
+### Two contracts cannot coexist, so the config makes it impossible
+
+`config/llama-swap.yaml` carries `deep` at 69.1 GiB. 69 + 61 does not fit. The
+Kairic roles therefore live in a *separate* config file rather than as extra
+roles in that one, so the overcommit cannot be written down, instead of being
+prevented by group semantics I would have had to get exactly right. `make
+kairic-up` additionally refuses to start if `llama-swap` is already active, and
+if fewer than 70 GiB are free.
+
+`swap: false` on the group keeps both loaded; verified by loading `code`, then
+`compact`, then confirming `code` still answered.
+
+`ExecStopPost` reaps both containers, because llama-swap spawns podman and a
+killed llama-swap can otherwise leave 60 GiB parented to conmon. `make
+kairic-down` prints free memory afterwards so "stopped" is demonstrated.
+
+### Verified working, not just written
+
+    n_ctx reported                  262144
+    tool call through the contract  {"name":"get_weather","arguments":{"city":"Chicago"}}
+    compact loaded without evicting code   yes
+    teardown returned all memory           109 GiB
+
+`KAIRIC_EDGE_COMPATIBILITY_MODE=1` is load-bearing in that config and is
+commented as such. At 0 the tool call above returns 400.

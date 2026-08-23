@@ -1,0 +1,36 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  "provider": {
+    "contract": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Kairic contract (llama-swap)",
+      "options": { "baseURL": "http://127.0.0.1:8080/v1" },
+      "models": {
+        "code": {
+          "name": "Qwen3.8-27B IU4 Kairic Edge",
+          "limit": { "context": 262144, "output": 32768 }
+        },
+        "compact": {
+          "name": "Qwen3.8-4B Q8_0 (compaction)",
+          "limit": { "context": 262144, "output": 8192 }
+        }
+      }
+    }
+  },
+
+  "model": "contract/code",
+  "small_model": "contract/compact",
+
+  "agent": {
+    "compaction": { "model": "contract/compact" },
+    "title":      { "model": "contract/compact" },
+    "summary":    { "model": "contract/compact" }
+  },
+
+  "compaction": {
+    "auto": true,
+    "prune": true,
+    "reserved": 32768
+  }
+}

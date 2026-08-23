@@ -1,0 +1,86 @@
+# The Kairic contract — Qwen3.8-27B at its full native window, plus a small
+# model of the same family to do compaction without evicting it.
+#
+# Deliberately a SEPARATE file from llama-swap.yaml rather than three more
+# roles inside it. That file also carries `deep` at 69.1 GiB; `code` and
+# `compact` here come to 60 GiB, and 69 + 60 exceeds this machine. Keeping the
+# heavy roles in different files means the overcommit cannot be expressed at
+# all, instead of being prevented by group semantics I would have to get right.
+# Run one contract or the other, never both.
+#
+# Measured on this machine, 2026-08-23 (repl/kairic-humaneval.sh):
+#   code    46 GiB resident   56.72 tok/s fast path / 41.89 compatibility
+#   compact 14 GiB resident   1025 tok/s prefill, 34.0 tok/s generation
+#   total   60 GiB of 122, leaving ~62 GiB for Nathan's own work
+
+macros:
+  m: /home/nathan/models
+  k: /models/qwen3.8-kairic
+
+models:
+  # Qwen3.8-27B-IU4 Kairic Edge. Launched through the vendor's own runner
+  # inside the ROCm container, because hand-copying its 30 environment
+  # variables is how you end up measuring something else.
+  #
+  # KAIRIC_EDGE_COMPATIBILITY_MODE=1 is NOT optional here. At 0 the greedy
+  # argmax fast path is ~35% quicker and rejects every request carrying tool
+  # calls, temperature above zero, grammar or logprobs — which is every
+  # request opencode makes. The speed is unreachable from an agent; do not
+  # "optimise" this back to 0.
+  code:
+    cmd: >
+      podman run --rm --replace --name kairic-serve
+      --device=/dev/kfd --device=/dev/dri --group-add keep-groups
+      --network=host -v ${m}:/models:z
+      --entrypoint /bin/bash
+      -e LLAMA_SERVER=/engine/llama-server
+      -e MODEL_PATH=${k}/Qwen3.8-27B-IU4-Kairic-Edge.gguf
+      -e KAIRIC_FFN_SIDECAR=${k}/Qwen3.8-27B-Kairic-IU4-FFN.pfs
+      -e KAIRIC_GDN_SIDECAR=${k}/Qwen3.8-27B-Kairic-IU4-GDN.pfs
+      -e KAIRIC_GDN_OUTPUT_SIDECAR=${k}/Qwen3.8-27B-Kairic-IU4-GDN-Output.pfs
+      -e KAIRIC_EDGE_COMPATIBILITY_MODE=1
+      -e CONTEXT=262144
+      -e CACHE_RAM=8192
+      -e HOST=127.0.0.1 -e PORT=${PORT}
+      localhost/kairic:v1.1 /src/scripts/run-kairic-edge-gfx1151.sh
+    # No ttl. This is the daily driver; paying a 90-second reload because you
+    # went to lunch is worse than holding the memory.
+    aliases: ["kairic", "claude-sonnet-4-5", "gpt-4o"]
+    checkEndpoint: /health
+
+  # Qwen3.8-4B-Distill Q8_0. Same qwen35 hybrid architecture as the 27B, so its
+  # 262144 window is cheap for the same reason: most blocks are Gated DeltaNet
+  # with constant state.
+  #
+  # Q8_0 on a 4B rather than Q4 on a 9B on purpose. A compaction summary is
+  # written once and then silently conditions every later turn, so a quiet
+  # quantisation error there is expensive and invisible. Buy quality on the
+  # model whose mistakes you never see.
+  #
+  # Context matches `code` exactly. opencode hands compaction a transcript
+  # nearly as large as the main window; a smaller window here would fail at
+  # precisely the moment compaction becomes necessary.
+  compact:
+    cmd: >
+      podman run --rm --replace --name compact-serve
+      --device=/dev/kfd --device=/dev/dri --group-add keep-groups
+      --network=host -v ${m}:/models:z
+      --entrypoint /engine/llama-server
+      -e HIP_VISIBLE_DEVICES=0
+      localhost/kairic:v1.1
+      -m /models/qwen3.8-4b/Qwen3.8-4B-Q8_0.gguf
+      --alias compact --host 127.0.0.1 --port ${PORT}
+      --jinja -dev ROCm0 -ngl 999 -c 262144 -fa on
+      -ctk f16 -ctv f16 --no-warmup
+      --reasoning off --reasoning-format none
+    aliases: ["claude-3-5-haiku-latest", "gpt-4o-mini"]
+    checkEndpoint: /health
+
+# swap:false so both stay loaded. If compaction could evict the 27B, every
+# compaction would cost a full reload of it afterwards, which is the entire
+# problem this file exists to avoid.
+groups:
+  resident:
+    swap: false
+    exclusive: true
+    members: ["code", "compact"]

@@ -1,0 +1,24 @@
+[Unit]
+Description=llama-swap — the Kairic contract (code + compact)
+Documentation=file:///home/nathan/code-stuff/ubuntu-strix-ai-setup/config/llama-swap-kairic.yaml
+After=network.target
+
+[Service]
+Type=simple
+# Loopback ONLY. A socket bound here cannot receive a packet addressed to a
+# routable interface, which is why this project needs no firewall rule.
+ExecStart=%h/.local/opt/llama-swap/llama-swap \
+  -config %h/code-stuff/ubuntu-strix-ai-setup/config/llama-swap-kairic.yaml \
+  -listen 127.0.0.1:8080 \
+  -watch-config
+Restart=on-failure
+RestartSec=5
+# llama-swap launches podman containers, so stopping the unit is not by itself
+# enough to free 60 GiB -- a killed llama-swap can leave the containers parented
+# to conmon and still resident. Reap them explicitly on every stop, success or
+# failure, so `stop` always means the memory came back.
+ExecStopPost=-/usr/bin/podman rm -f kairic-serve compact-serve
+TimeoutStopSec=45
+
+[Install]
+WantedBy=default.target
