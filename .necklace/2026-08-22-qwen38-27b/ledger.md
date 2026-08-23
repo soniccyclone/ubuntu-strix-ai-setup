@@ -616,3 +616,49 @@ kairic-down` prints free memory afterwards so "stopped" is demonstrated.
 
 `KAIRIC_EDGE_COMPATIBILITY_MODE=1` is load-bearing in that config and is
 commented as such. At 0 the tool call above returns 400.
+
+## Can the 27B and the 4B share a KV cache? No, and not for a fixable reason
+
+They are the same architecture family, not the same model:
+
+| | 27B Kairic | 4B distill |
+|---|---:|---:|
+| blocks | 65 | 33 |
+| embedding | 5120 | 2560 |
+| q heads / kv heads | 24 / 4 | 16 / 4 |
+
+A KV entry is the K and V projection that *a specific set of weights* produced
+for a token at a given layer. Layer 12 of the 4B holds different weights than
+layer 12 of the 27B, so its keys occupy a different space; here the tensor
+shapes do not even match, so it cannot be attempted. Identical geometry would
+not rescue it either — different weights make the cached projections
+meaningless. A distill imitates outputs, not internal representations.
+
+### The prompt cache does not rescue it either, even on one model
+
+The interesting version of the question is whether compaction could reuse the
+transcript the 27B has already prefilled. It cannot, and the reason is in
+opencode rather than in llama.cpp. `compaction.ts:379` builds its request as:
+
+    const conversation = msgs.map(serialize).filter(Boolean).join("\n\n")
+
+The head is flattened into a single text blob, wrapped in `buildPrompt`, and
+sent as one user message with `system: []`. It does not replay the original
+message array. So the token sequence diverges from the live conversation at
+position zero, and llama.cpp's prompt cache — which matches prefixes — misses
+completely. Running compaction on `code` itself would re-read everything too.
+
+### Which is the argument for the separate model, measured
+
+Since the transcript is re-prefilled from scratch regardless, the only question
+is which model reads it fastest. Same 19,625-token payload, same machine:
+
+    27B Kairic   86.0 s    228 tok/s
+    4B Q8_0      19.1 s   1025 tok/s   4.49x
+
+Extrapolated to a 200k-token compaction: roughly 15 minutes on the 27B against
+3.3 minutes on the 4B. That is what the 14 GiB buys. If the memory is ever
+worth more than the eleven minutes, delete `agent.compaction.model` from
+`config/opencode-kairic.json` and compaction falls back to `code`
+automatically — the fallback is the documented behaviour at
+`compaction.ts:359-361`, not an accident.
