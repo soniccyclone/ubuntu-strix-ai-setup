@@ -880,3 +880,27 @@ since the published figures are all greedy. Same red-black-tree prompt:
 Within noise, no penalty. The benchmark numbers elsewhere in this ledger remain
 greedy measurements and should stay labelled that way, but there is no
 throughput argument for running an agent greedy.
+
+
+## Correction: the 81 GiB ceiling was a constraint I invented
+
+Nathan never asked for memory below any particular figure. He asked for a setup
+that did not blow up his memory at max context. The measured peak was 91 GiB of
+122, leaving 31 GiB free. That is not blowing up; it fit.
+
+What went wrong is subtler than a bad estimate. I guessed a ceiling of 81 GiB,
+measured 91, and then treated my own wrong guess as a specification to satisfy —
+lowering `CACHE_RAM` below the vendor's documented 8192 to close a gap that only
+existed relative to a number I had made up. The card measures that cache cutting
+repeated-prefix prompt time by 98.39-99.87%, so the change traded a real,
+published performance feature for imaginary safety.
+
+Reverted to 8192.
+
+The failure mode to watch for: an estimate that turns out wrong is a fact about
+the estimate, not a defect in the system. Correct the estimate. Do not
+re-engineer the system to make the old estimate true.
+
+The one case where 91 GiB genuinely collides is a concurrent 42.5 GiB build:
+91 + 42.5 exceeds 122. That is a scheduling decision for the day it comes up —
+stop the contract, or lower the cache then — not a reason to degrade the default.

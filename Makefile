@@ -190,7 +190,7 @@ kairic-install:          ## Install the Kairic contract units (one time)
 	@ln -sfn $(PWD)/config/opencode-kairic.jsonc ~/.config/opencode/opencode.jsonc
 	@echo "opencode config linked at ~/.config/opencode/opencode.jsonc"
 
-kairic-up:               ## Start Kairic 27B (compat+live sampling) + 4B compaction; 60 GiB at load, climbs with use
+kairic-up:               ## Start Kairic 27B (compat+live sampling) + 4B compaction; ~61 GiB at load, ~78 GiB peak
 	@avail=$$(free -g | awk 'NR==2{print $$7}'); 	  if [ "$$avail" -lt 70 ]; then 	    echo "ABORT: $${avail} GiB available, this needs 60 and leaves nothing." >&2; 	    echo "Something else is holding memory. 'make status' first." >&2; exit 1; fi
 	@systemctl --user is-active llama-swap >/dev/null 2>&1 && { 	  echo "ABORT: the 122B contract (llama-swap) is up. Two contracts do not fit." >&2; 	  echo "Run 'make llm-down' first." >&2; exit 1; } || true
 	@systemctl --user start llama-swap-kairic

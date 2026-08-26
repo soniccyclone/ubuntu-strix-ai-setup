@@ -19,11 +19,16 @@
 # RSS -- `podman stats` showed 6 GB between both containers while GTT held
 # 71.3 GiB. Watch mem_info_gtt_used, not RSS, or the growth is invisible.
 #
-# CACHE_RAM is 4096 rather than the vendor's 8192 as a PARTIAL mitigation. The
-# growth was 17 GiB (74 -> 91 used); the prompt cache explains at most 8 of it
-# and halving the cap recovers at most 4. The rest is unattributed -- likely
-# -ctxcp 32 checkpoints and the MTP draft context, neither of which --cache-ram
-# bounds. Do not treat this number as a memory guarantee. Cost is a lower prompt-cache hit rate on repeated
+# CACHE_RAM stays at the vendor's recommended 8192. It was briefly lowered to
+# 4096 to chase a memory ceiling nobody asked for: the observed peak was 91 GiB
+# used of 122, leaving 31 GiB free, which is not a problem on this machine. The
+# cache is a documented performance feature -- the card measures it cutting
+# repeated-prefix prompt time by 98.39-99.87% -- so halving it traded real speed
+# for imaginary safety.
+#
+# The one case where 91 GiB actually collides: a concurrent 42.5 GiB build.
+# 91 + 42.5 exceeds 122. If that matters on a given day, stop the contract or
+# lower CACHE_RAM then, as a deliberate choice rather than a default. Cost is a lower prompt-cache hit rate on repeated
 # prefixes. -ctxcp 32 stays, because the card states checkpoints are required
 # for correct recurrent-state restore on this hybrid model.
 
@@ -55,7 +60,7 @@ models:
       -e KAIRIC_GDN_OUTPUT_SIDECAR=${k}/Qwen3.8-27B-Kairic-IU4-GDN-Output.pfs
       -e KAIRIC_EDGE_COMPATIBILITY_MODE=1
       -e CONTEXT=262144
-      -e CACHE_RAM=4096
+      -e CACHE_RAM=8192
       -e HOST=127.0.0.1 -e PORT=${PORT}
       localhost/kairic:v1.1 /run-kairic-serve.sh
     # No ttl. This is the daily driver; paying a 90-second reload because you
