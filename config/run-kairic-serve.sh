@@ -47,6 +47,25 @@ readonly library_path="$server_dir:$rocm/lib:$rocm/lib/rocm_sysdeps/lib:$rocm/li
 # tool-calling loop re-emits the same command until something kills it --
 # observed doing exactly that in opencode for the better part of an hour.
 #
+# SAMPLING: Qwen's THINKING-mode values, because reasoning is on below.
+# Qwen publishes two sets and they are not interchangeable:
+#   thinking      temp 1.0  top_p 0.95  top_k 20  min_p 0  presence 0.0
+#   non-thinking  temp 0.7  top_p 0.80  top_k 20  min_p 0  presence 1.5
+# An earlier revision here used the non-thinking pair WITH thinking enabled,
+# including presence_penalty 1.5 -- the maximum Qwen suggests, which their docs
+# warn "may occasionally result in language mixing and a slight decrease in
+# model performance". A presence penalty also actively hurts code, where
+# repeating identifiers and syntax is correct rather than degenerate.
+# These same values are what the GGUF itself advertises in general.sampling.
+#
+# SLOTS: -np 2, not the vendor's 1. opencode's `general` subagent is documented
+# to "execute multiple units of work in parallel", and agents inherit the main
+# model, so with one slot every subagent call evicts the main session's KV and
+# forces a full re-prefill -- minutes at 228 tok/s on a large context. Two slots
+# keep the main session on 0 and subagents on 1. Context is TOTAL across slots,
+# so this is 131072 per slot; opencode's limit.context must match that, not the
+# 262144 the model supports.
+#
 # Reasoning is ON with format 'deepseek', not the vendor runner's
 # '--reasoning off --reasoning-format none'. Two separate things were wrong for
 # interactive use: 'off' means no thoughts are generated at all, and 'none'
@@ -92,7 +111,7 @@ exec /usr/bin/env \
   "$server" -m "$model" --alias "$alias_name" \
     --host "$host" --port "$port" --jinja -dev ROCm0 -ngl 999 \
     -c "$context" -b 2048 -ub 512 -fa on -ctk f16 -ctv f16 \
-    -t 16 -tb 32 -np 1 -ctxcp 32 --cache-ram "$cache_ram" \
+    -t 16 -tb 32 -np ${KAIRIC_SLOTS:-2} -ctxcp 32 --cache-ram "$cache_ram" \
     --cache-prompt --cache-idle-slots --metrics \
     --kairic-edge \
     --spec-type draft-mtp \
@@ -101,9 +120,9 @@ exec /usr/bin/env \
     --spec-draft-n-max 4 --spec-draft-n-min 0 \
     --spec-draft-p-min 0.0 --spec-draft-p-split 0.10 \
     --spec-draft-backend-sampling \
-    --temp ${KAIRIC_TEMP:-0.7} --top-p ${KAIRIC_TOP_P:-0.8} \
-    --top-k ${KAIRIC_TOP_K:-20} --min-p 0.0 \
-    --presence-penalty ${KAIRIC_PRESENCE_PENALTY:-1.5} \
+    --temp ${KAIRIC_TEMP:-1.0} --top-p ${KAIRIC_TOP_P:-0.95} \
+    --top-k ${KAIRIC_TOP_K:-20} --min-p ${KAIRIC_MIN_P:-0.0} \
+    --presence-penalty ${KAIRIC_PRESENCE_PENALTY:-0.0} \
     --reasoning ${KAIRIC_REASONING:-on} \
     --reasoning-format ${KAIRIC_REASONING_FORMAT:-deepseek} \
     --reasoning-budget ${KAIRIC_REASONING_BUDGET:--1}

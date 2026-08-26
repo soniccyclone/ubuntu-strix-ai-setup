@@ -60,7 +60,7 @@ models:
       -e KAIRIC_GDN_OUTPUT_SIDECAR=${k}/Qwen3.8-27B-Kairic-IU4-GDN-Output.pfs
       -e KAIRIC_EDGE_COMPATIBILITY_MODE=1
       -e CONTEXT=262144
-      -e CACHE_RAM=8192
+      -e CACHE_RAM=16384
       -e HOST=127.0.0.1 -e PORT=${PORT}
       localhost/kairic:v1.1 /run-kairic-serve.sh
     # No ttl. This is the daily driver; paying a 90-second reload because you

@@ -964,3 +964,89 @@ than inherited.
 Cost: thinking generates extra tokens before the answer, so first-token latency
 rises. `KAIRIC_REASONING_BUDGET` caps it if that becomes annoying; -1 is
 unrestricted.
+
+## Rebuilt for programming, not for measurement
+
+Nathan's objection was correct and structural: I took the vendor's benchmark
+runner as a starting point and patched it reactively three times instead of
+designing a serving configuration. Every default in that script exists to make
+164 tasks reproducible byte-for-byte. Almost none of them suit an agent.
+
+Full audit, with sources checked rather than reasoned from.
+
+### Sampling was actively wrong, not merely suboptimal
+
+Qwen publishes two sets and they are not interchangeable:
+
+    thinking      temp 1.0  top_p 0.95  top_k 20  min_p 0  presence 0.0
+    non-thinking  temp 0.7  top_p 0.80  top_k 20  min_p 0  presence 1.5
+
+I had set the *non-thinking* pair and then enabled thinking. Worse,
+presence_penalty 1.5 is the top of Qwen's suggested range and their own docs
+warn it "may occasionally result in language mixing and a slight decrease in
+model performance". For code it is worse than neutral: a presence penalty
+discourages repeating tokens, and repeating identifiers, keywords and
+punctuation is exactly what correct code does.
+
+Now temp 1.0 / top_p 0.95 / top_k 20 / min_p 0 / presence 0.0 — which is also
+precisely what the GGUF advertises in `general.sampling`. The model told us the
+answer and I overrode it with values for the wrong mode.
+
+### One slot was the expensive mistake
+
+The vendor runs `-np 1`; a single-user benchmark never needs more. But
+opencode's `general` subagent is documented as "execute multiple units of work
+in parallel", and agents inherit the main model unless told otherwise. With one
+slot, every parallel subagent both serialises *and* evicts the main session's
+KV, forcing a full re-prefill at 228 tok/s — minutes of dead time per subagent
+call on a large context.
+
+Now `-np 2`. Context is TOTAL across slots, so this is 131072 per slot rather
+than 262144 in one. That trade is right for this workload: 131k is ample for
+coding, and protecting the main session's cache is worth far more than context
+beyond it. `limit.context` in the opencode config was lowered to match — if it
+had stayed at 262144, compaction would fire after the slot had already
+overflowed.
+
+Subagents are pinned to slot 1 through a second opencode model entry that
+aliases back to the same server model:
+
+    "code-sub": { "id": "code", "options": { "id_slot": 1 } }
+
+Verified in the server log, not assumed:
+
+    slot launch_slot_: id  1 | task 53 | processing task
+    slot process_sing: id  0 | task -1 | saving idle slot to prompt cache
+
+### What the research ruled OUT
+
+`--cache-reuse` looks made for this and is a trap. It does not work with
+recurrent-state models, and this is a Gated DeltaNet hybrid. Adding it would
+have been cargo cult.
+
+`reasoning_effort` (xhigh / medium / low, defaulting to xhigh in this model's
+chat template) is worth knowing about but was left alone: current guidance is
+xhigh for agentic coding, low for high-volume endpoints. It is the main lever on
+thinking-token cost if turns feel slow.
+
+Context shift stays disabled (the default). opencode compacts deliberately;
+shifting a recurrent model's window underneath it is a correctness risk.
+
+`-ctxcp 32` is already llama.cpp's default, so the vendor's flag was a no-op.
+
+### Other changes
+
+`--cache-ram` raised 8192 -> 16384. Agent turns share thousands of tokens of
+prefix, so cache hits are the difference between a fast turn and a re-prefill,
+and there is memory to spare. This is the opposite of the earlier reflex to
+shrink it for a ceiling nobody asked for.
+
+opencode model entries now declare `tool_call`, `reasoning` and `attachment`
+explicitly instead of relying on inference, and `compaction.reserved` was scaled
+to the smaller per-slot window.
+
+### The rule this should have followed from the start
+
+A benchmark harness is tuned to make results reproducible. A serving config is
+tuned to make work pleasant. They agree almost nowhere, and inheriting one as a
+base for the other silently imports every one of its priorities.
