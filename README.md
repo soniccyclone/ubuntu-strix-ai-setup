@@ -75,6 +75,9 @@ make status         # what is running and what it costs
 `make kairic-up` refuses to start if under 70 GiB is free or if another contract
 is already up, because two of these do not fit.
 
+Day-to-day operation, every tuning lever, and a troubleshooting guide covering
+each failure this stack actually produced: **[docs/kairic-operations.md](docs/kairic-operations.md)**.
+
 ## Things that are non-obvious
 
 **Watch GTT, not RSS.** On a unified-memory APU the weights live in GTT. `ps`,
@@ -113,6 +116,7 @@ config/opencode-kairic.jsonc     client wiring: lanes, limits, compaction
 harness/Containerfile.kairic     ROCm 7.2.2 + patched Composable Kernel
 systemd/llama-swap-kairic.service
 scripts/setup-kairic.sh          everything above, idempotent
+docs/kairic-operations.md        running, tuning, troubleshooting
 docs/privileged-steps.md         the root steps, with rollbacks
 bench/results.md                 measurements and method
 .necklace/                       the full record, including what failed

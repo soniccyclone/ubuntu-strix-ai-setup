@@ -1081,3 +1081,30 @@ measured, with the method beside them.
 No CUJ or beads document was produced for this cycle. The work went from spec
 straight to measurement and configuration, and Nathan is using the result. That
 is a deviation from the pipeline, recorded here rather than papered over.
+
+## Knowledge that existed only in conversation is now in the repo
+
+An audit found nine operational facts that lived only in the session transcript
+or buried mid-ledger, where nobody arriving later would find them: the
+`KAIRIC_*` tuning variables, `reasoning_effort`, the requirement to restart
+opencode after a config change, the `~/.config/opencode/opencode.jsonc` path, the
+`id_slot` subagent lane, the `json_schema` fault, the `newgrp` step after
+`usermod`, `podman top` as the only reliable way to see a launcher's real argv,
+and the two container-dies-silently causes.
+
+`docs/kairic-operations.md` now carries all of it, organised as: what runs
+where, the two roles and why the 4B exists, client wiring, a tuning table with
+every environment variable and its default, memory and how to watch it, a
+troubleshooting section keyed by observed symptom, and a short list of commands
+that verify a change actually took effect.
+
+The troubleshooting entries are the failures this cycle actually produced,
+written symptom-first — repetition loop, empty think blocks, 400 on tool calls,
+hosted models instead of the local provider, LSPs disabled, OOM while every tool
+reports plenty free. Each names the cause and the fix rather than the story.
+
+The last section is the one worth keeping: five commands that verify a change
+landed, because on this stack reading the config is not evidence. `bash -n`
+passed a launcher whose command had been silently truncated by a comment inside
+a line continuation, and the server started and served plausible-looking output
+for two restarts before `podman top` showed the missing flags.
