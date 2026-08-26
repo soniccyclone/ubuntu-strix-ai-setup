@@ -1,131 +1,124 @@
-# Qwen3.8-27B Kairic Edge on Strix Halo, Ubuntu 26.04
+# Agentic AI on a Strix Halo box
 
-A working local coding-agent stack: Qwen3.8-27B with the Kairic Edge IU4
-runtime, a small model beside it for compaction, and opencode wired to both.
+Everything needed to run coding agents, chat models and media generation
+locally on an AMD Strix Halo APU — no cloud, no API keys, no daemon running as
+root.
 
-Measured on this machine (HP ZBook Ultra G1a, Ryzen AI Max+ PRO 395, Radeon
-8060S / gfx1151, 122.8 GiB unified):
+The machine this was built and measured on: HP ZBook Ultra G1a, Ryzen AI Max+
+PRO 395, Radeon 8060S (RDNA 3.5, `gfx1151`), 122.8 GiB unified memory, Ubuntu
+26.04. Every number in this repository was measured on it, and the method is
+published beside each one.
 
-| configuration | tok/s |
-| --- | ---: |
-| Kairic IU4, compatibility mode (**what this repo runs**) | **41.89** |
-| Kairic IU4, vendor greedy fast path | 56.72 |
-| ROCmFP4 + MTP, same engine family | 22.21 |
-| stock Q4_K_M, upstream llama.cpp Vulkan | 12.23 |
+## Subsystems
 
-HumanEval tasks 0–9, chat-adapted, hot cache, MTP speculation on in every arm,
-matched settings. Method and every failed attempt: `bench/results.md` and
-`.necklace/2026-08-22-qwen38-27b/ledger.md`. The vendor publishes 48.78 for the
-same ten-task slice; the compatibility figure reproduces their published 41.87
-to within 0.05%.
+### Coding agent — Qwen3.8-27B Kairic Edge + opencode
 
-Compatibility mode is what you want even though it is slower. The fast path is
-~35% quicker and rejects every request carrying tool calls, temperature above
-zero, grammar or logprobs — which is every request an agent makes.
+The daily driver. A 27B model with a hardware-native IU4 compute lane,
+multi-token speculation, and a second small model beside it that handles
+context compaction without evicting your session.
 
-## Requirements
+    41.89 tok/s   what this repo runs (tool calls, sampling, thinking all work)
+    22.21 tok/s   the same model on the next-best local runtime
+    12.23 tok/s   the same model on upstream llama.cpp
 
-- AMD Strix Halo (gfx1151) with unified memory. Nothing else is validated.
-- 128 GB RAM. The two models hold ~61 GiB and peak around 78 GiB in use.
-- ~35 GiB disk for weights, ~10 GiB for the engine image.
-- Ubuntu 26.04. Podman rootless; no Docker daemon, no root at runtime.
-
-## Setup
-
-Two steps need root, once, and the first needs a reboot. The setup script
-detects both and prints the exact commands rather than attempting them — no
-process in this repo can escalate.
+**[docs/kairic-edge-opencode.md](docs/kairic-edge-opencode.md)** — setup from a
+fresh machine, in one command.
+**[docs/kairic-operations.md](docs/kairic-operations.md)** — running, tuning,
+and troubleshooting by symptom.
 
 ```
-sudo cp /etc/default/grub /etc/default/grub.bak
-sudo sed -i 's/^GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"$/GRUB_CMDLINE_LINUX_DEFAULT="quiet splash amdgpu.gttsize=112640 ttm.pages_limit=28835840"/' /etc/default/grub
-sudo update-grub
-sudo usermod -aG render,video $USER
-sudo reboot
+make kairic-setup    # once: image, weights, wiring
+make kairic-up       # start
 ```
 
-The amdgpu driver caps GTT at half of RAM, which cannot hold 27 GiB of weights
-plus a 262144-token KV cache. `gttsize` is MiB, `ttm.pages_limit` is 4 KiB
-pages, and the two must agree. Rollback, verification, and what to do if it will
-not boot: [docs/privileged-steps.md](docs/privileged-steps.md).
+### General LLM contract — one port, models addressed by role
 
-Then, as your normal user:
+An older, broader serving contract for tools that are not opencode. Frontends
+name a *role*; `config/llama-swap.yaml` decides what serves it, so swapping a
+model never touches a client.
 
-```
-git clone https://github.com/soniccyclone/ubuntu-strix-ai-setup
-cd ubuntu-strix-ai-setup && make kairic-setup
-```
+| role | model | size | prefill | decode |
+| --- | --- | ---: | ---: | ---: |
+| `fast` | Qwen3.6-35B-A3B Q4_K_M, vision | 20.74 GiB | 811 pp512 | 59.6 tg128 |
+| `deep` | Qwen3.5-122B-A10B Q4_K_M, vision | 69.10 GiB | 215 pp512 | 26.4 tg128 |
 
-That builds the ROCm engine image, downloads and SHA-256-verifies ~30 GiB of
-weights, installs the systemd unit and links the opencode config. It is
-idempotent — re-running after an interrupted download resumes rather than
-restarting, and it never touches a contract that is already serving.
-
-Install opencode separately if you want the client: `npm i -g opencode-ai`.
-
-## Daily use
+Both at full 262144 native context, which is nearly free on these models
+because most of their blocks are Gated DeltaNet with constant state rather than
+a KV cache that grows with the window.
 
 ```
-make kairic-up      # start; first request loads the 27B, 60-90 s
-opencode            # roles: contract/code, contract/compact
-make kairic-down    # stop, and print the memory that came back
-make status         # what is running and what it costs
+make llm-up
+make chat Q="explain page faults" M=fast
 ```
 
-`make kairic-up` refuses to start if under 70 GiB is free or if another contract
-is already up, because two of these do not fit.
+### Media generation — image, 3D mesh, rigging, sprites
 
-Day-to-day operation, every tuning lever, and a troubleshooting guide covering
-each failure this stack actually produced: **[docs/kairic-operations.md](docs/kairic-operations.md)**.
+Text to a rigged GLB in one command, plus pixel-art sprites with real alpha.
+Image generation lands within 3% of the published reference for this hardware,
+and matches the Windows warm figure exactly.
 
-## Things that are non-obvious
+```
+make character SUBJ="an orc shaman"    # reference -> mesh -> rigged GLB
+make asset PROMPT="a stone lantern"    # text -> textured GLB
+make sprite SUBJ=orc                   # pixel-art sprite, alpha keyed
+make viewer                            # browse what you made
+```
+
+`make help` lists every target with its arguments.
+
+## Shared foundations
+
+**One privileged step, once.** The amdgpu driver caps GTT at half of RAM, which
+cannot hold a large model plus its context. Raising it is a kernel command line
+change and needs a reboot. Full procedure, verification and rollback:
+[docs/privileged-steps.md](docs/privileged-steps.md). Nothing in this repo can
+escalate — `sudo -n` fails — so root commands are printed for you to run, never
+attempted.
+
+**Rootless podman throughout.** Containers are direct children of your user with
+no privileged daemon. `--device=/dev/kfd --device=/dev/dri --group-add
+keep-groups` is all the GPU access any of it needs.
+
+**The Makefile is the interface.** Every service target traps its own shutdown,
+so it cleans up on success, on failure and on Ctrl-C.
+
+**Two commands that always work:**
+
+```
+make status      # what is running and what it is costing, including GPU memory
+make stop-all    # stop everything this repo can start, then prove it
+```
 
 **Watch GTT, not RSS.** On a unified-memory APU the weights live in GTT. `ps`,
-`top` and `podman stats` reported 6 GB while 91 GiB was in use. Read
-`/sys/class/drm/card*/device/mem_info_gtt_total` and `mem_info_gtt_used`.
-
-**The vendor runner is a benchmark harness, not a serving config.** Its defaults
-are tuned for byte-identical reproducible runs: greedy sampling with penalties
-off, reasoning disabled, one slot. Every one of those is wrong for interactive
-use, and each produced a visible failure before it was fixed — a tool-calling
-loop that repeated one command for an hour, empty `<think></think>` blocks, and
-subagents evicting the main session's KV cache.
-`config/run-kairic-serve.sh` is their runner with those four changed and
-commented.
-
-**Sampling follows Qwen's thinking-mode values** — temp 1.0, top_p 0.95, top_k
-20, min_p 0, presence_penalty 0 — because reasoning is enabled. The
-non-thinking set (0.7 / 0.80 / presence 1.5) is for a different mode, and a
-presence penalty actively harms code, where repeating identifiers is correct.
-
-**Two slots, 131072 context each**, not one slot at 262144. opencode's `general`
-subagent runs work in parallel and inherits the main model, so with one slot
-every subagent call evicts the main session and forces a full re-prefill.
-Subagents are pinned to slot 1 via a second model entry aliased to the same
-server model.
-
-**`--cache-reuse` does not work here.** It has no effect on recurrent-state
-models, and this is a Gated DeltaNet hybrid.
+`top` and `podman stats` will report a few GB while 91 GiB is in use. Read
+`/sys/class/drm/card*/device/mem_info_gtt_used`. This is the single most
+misleading thing about the platform and it has caused real out-of-memory kills
+here.
 
 ## Layout
 
 ```
-config/run-kairic-serve.sh       vendor runner, patched for serving
-config/llama-swap-kairic.yaml    the two roles and their resident group
-config/opencode-kairic.jsonc     client wiring: lanes, limits, compaction
-harness/Containerfile.kairic     ROCm 7.2.2 + patched Composable Kernel
-systemd/llama-swap-kairic.service
-scripts/setup-kairic.sh          everything above, idempotent
-docs/kairic-operations.md        running, tuning, troubleshooting
-docs/privileged-steps.md         the root steps, with rollbacks
-bench/results.md                 measurements and method
-.necklace/                       the full record, including what failed
+config/          serving contracts and client wiring
+harness/         container definitions for every engine
+systemd/         user units; no system-level services
+tools/           the small clients and probes the targets call
+tests/           17 bats suites, run with `make test`
+bench/           measurements, with method
+docs/            setup, operations, privileged steps
+.necklace/       the full development record, including what failed
 ```
 
-The engine is llama.cpp — a source snapshot published as `ciru-ai/ROCmFPX`,
-branch `release/kairic-edge-qwen38-27b-v1.1`, built with a patched Composable
-Kernel for the `V_WMMA_I32_16X16X16_IU4` instruction. It carries no upstream
-llama.cpp history, so there is no merge path to newer llama.cpp.
+`.necklace/` is worth reading before changing anything. Each cycle keeps a
+ledger of what was measured, what was tried and abandoned, and why — including
+the wrong turns, which are usually more useful than the conclusions.
 
-Model weights are Apache 2.0 from Qwen3.8-27B. Runtime and third-party
-components keep their own licenses.
+## Testing
+
+```
+make setup    # bats, jq, podman check
+make test     # 17 suites
+```
+
+Agents under evaluation run in containers with no host filesystem mounted, so a
+test cannot reach into the working tree. `make test-isolation` checks that
+boundary specifically.

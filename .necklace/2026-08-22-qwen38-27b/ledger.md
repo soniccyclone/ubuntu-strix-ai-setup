@@ -1130,3 +1130,33 @@ twice.
 
 Documenting a headline number without documenting its regime is how a benchmark
 becomes a support burden.
+
+## The README described one subsystem and claimed the whole repo
+
+`README.md` opened with "Qwen3.8-27B Kairic Edge on Strix Halo" and covered
+only cycle 3. This repository is three cycles: a general serving contract with
+role-addressed models, a media generation pipeline, and the coding agent. A
+newcomer landing on it would have concluded the other two did not exist.
+
+Restructured rather than rewritten, since the Kairic document reads well and
+Nathan wanted it kept:
+
+    git mv README.md docs/kairic-edge-opencode.md
+
+with its relative links repointed for its new depth (`docs/privileged-steps.md`
+-> `privileged-steps.md`, `bench/results.md` -> `../bench/results.md`), a
+subtitle marking it as one subsystem, and its "Layout" section retitled to
+"Files this subsystem owns" so the repo-root-relative paths in it stay true.
+
+The new `README.md` covers all three subsystems with the measured numbers for
+each, then the foundations they share: the one privileged GTT step, rootless
+podman, the Makefile as the interface, `make status` / `make stop-all`, and the
+GTT-not-RSS warning that has caused real OOM kills here.
+
+Every relative link in both directions was verified to resolve, in both files,
+after the move.
+
+The general lesson, which applies beyond this repo: a README that grew out of
+one subsystem will keep claiming to be the whole project long after it stops
+being true, because nothing forces the question. The trigger to check is a
+second subsystem landing, not a reader complaining.

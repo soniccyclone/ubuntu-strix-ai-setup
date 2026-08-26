@@ -1,7 +1,8 @@
 # Operating the Kairic contract
 
 Everything needed to run, tune and repair this stack without having watched it
-being built. Setup is in [../README.md](../README.md); this is what comes after.
+being built. Setup is in [kairic-edge-opencode.md](kairic-edge-opencode.md); this is what
+comes after. Repo overview: [../README.md](../README.md).
 
 ## What runs where
 
