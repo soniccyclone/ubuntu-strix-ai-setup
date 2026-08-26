@@ -11,7 +11,7 @@ TESTS     ?= tests
 
 .PHONY: help setup test test-isolation harness-up harness-down clean \
         media-up media-down asset viewer sprite rig llm-up llm-down chat status stop-all \
-        kairic-up kairic-down kairic-install \
+        kairic-up kairic-down kairic-install kairic-setup \
         faces-ladder ref character prompt refcheck rigcheck mesh from-ref require-subj require-img
 
 help:                    ## Show this help
@@ -180,6 +180,9 @@ viewer:                  ## Browse generated GLBs (Ctrl-C to stop; needs no GPU)
 sprite: media-up         ## Pixel-art sprite, keyed to real alpha.  make sprite SUBJ=orc
 	@trap '$(STOP_MEDIA)' EXIT; \
 	python3 tools/pixel_ab.py klein --only $(or $(SUBJ),knight) --out $(OUT)/sprites --key
+
+kairic-setup:            ## Full setup from a fresh machine: image, weights, wiring
+	@scripts/setup-kairic.sh
 
 kairic-install:          ## Install the Kairic contract units (one time)
 	@mkdir -p ~/.config/systemd/user

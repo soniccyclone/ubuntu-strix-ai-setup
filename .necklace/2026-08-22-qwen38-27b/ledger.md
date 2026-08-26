@@ -1050,3 +1050,34 @@ to the smaller per-slot window.
 A benchmark harness is tuned to make results reproducible. A serving config is
 tuned to make work pleasant. They agree almost nowhere, and inheriting one as a
 base for the other silently imports every one of its priorities.
+
+## Reproduction path for a fresh machine
+
+`scripts/setup-kairic.sh`, reachable as `make kairic-setup`, plus a `README.md`
+that did not previously exist in this repo.
+
+The script is idempotent and resumable: every step checks before acting, so
+re-running after an interrupted 30 GiB download costs a checksum pass rather
+than a redownload. It contains no start/stop/run commands, which is deliberate —
+it is safe to run while a contract is already serving.
+
+It refuses rather than guesses on the two steps that need root. GTT below 90 GiB
+prints the exact grub commands and exits; missing `render` group membership does
+the same. Neither is attempted, because nothing in this repo can escalate and a
+setup script that silently half-works is worse than one that stops.
+
+Verified without running the heavy path: the llama-swap release asset name the
+script constructs (`llama-swap_250_linux_amd64.tar.gz`) resolves 200 against
+GitHub and matches the only linux/amd64 asset on that tag; the GTT guard passes
+at this machine's 110 GiB and correctly blocks at the ~61 GiB a stock machine
+would report; the render-group and image-exists checks resolve correctly.
+
+The README leads with the compatibility-mode figure rather than the faster one,
+because the fast path cannot serve a tool call and quoting it as the headline
+would mislead exactly the person the document exists for. Third-party
+comparisons circulating online were left out — this repo publishes numbers it
+measured, with the method beside them.
+
+No CUJ or beads document was produced for this cycle. The work went from spec
+straight to measurement and configuration, and Nathan is using the result. That
+is a deviation from the pipeline, recorded here rather than papered over.
