@@ -904,3 +904,27 @@ re-engineer the system to make the old estimate true.
 The one case where 91 GiB genuinely collides is a concurrent 42.5 GiB build:
 91 + 42.5 exceeds 122. That is a scheduling decision for the day it comes up —
 stop the contract, or lower the cache then — not a reason to degrade the default.
+
+## LSP was off because the config omitted it
+
+opencode reported "LSPs are disabled". Not a bug — the schema is explicit:
+
+> Enable or configure LSP servers. Omit or set to false to disable, true to
+> enable built-ins, or an object to enable built-ins with overrides.
+
+Omitting the key disables them. `config/opencode-kairic.jsonc` omitted it, so
+they were off. Added `"lsp": true`.
+
+Verified rather than assumed: `opencode debug config` reports `lsp: True`, and
+`opencode debug lsp diagnostics` on a deliberately broken Python file returned a
+real Pyright diagnostic. opencode installs and manages the servers itself — none
+of pyright, gopls, clangd or the rest are on this host's PATH and it worked
+anyway, so there is nothing to apt-install.
+
+Note for the resume project specifically: its content is `.org`, `.html` and
+`.css`. There is no built-in org-mode LSP, and `diagnostics resume.html`
+returned empty. LSP will matter for code work, not for editing Resume.org.
+
+`opencode debug` is the tool for this class of question — `debug config` shows
+the resolved configuration after merging, which answers "did my config actually
+take effect" directly instead of by inference.

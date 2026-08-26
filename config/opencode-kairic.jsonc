@@ -42,5 +42,6 @@
     "auto": true,
     "prune": true,
     "reserved": 32768
-  }
+  },
+  "lsp": true
 }
