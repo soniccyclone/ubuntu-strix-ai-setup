@@ -806,3 +806,62 @@ carries no `hidden` field; `hidden` exists only on `AgentConfig`.
 
 So it stays visible. Renaming it to something obviously internal is the whole
 available remedy.
+
+## The repetition loop was the sampler, and the sampler was my fault
+
+Nathan ran opencode against `code` and it re-issued the identical shell command
+for close to an hour. Not a model defect and nothing to do with Unsloth — the
+Unsloth quants are the card's *comparison* arms and were never downloaded here.
+
+The running server was configured like this:
+
+    temperature 0.0   top_k 0   top_p 1.0
+    repeat_penalty 1.0   presence_penalty 0.0
+
+Pure greedy with every penalty disabled. Once decoding enters a repetition
+attractor there is nothing to push it out, so the same tool call comes back
+forever. Those are the vendor runner's defaults and they are correct for what
+the runner is for — reproducible benchmarking, byte-identical output between
+runs. They are wrong for agent work, and the card says so, giving Qwen's live
+values for compatibility mode: temp 0.7, top_p 0.8, top_k 20, presence 1.5.
+
+I wired the benchmark configuration straight into interactive use.
+
+### Fix
+
+`config/run-kairic-serve.sh` is the vendor runner with only the sampler line
+changed, overridable by `KAIRIC_TEMP` / `KAIRIC_TOP_P` / `KAIRIC_TOP_K` /
+`KAIRIC_PRESENCE_PENALTY`. Fixed at the server so it holds no matter what a
+client sends. Verified in `/props`:
+
+    temperature 0.7   top_p 0.8   top_k 20   min_p 0.0   presence_penalty 1.5
+
+### A bash trap that hid the first attempt
+
+The first patch put explanatory comments between continuation lines:
+
+    --spec-draft-backend-sampling \
+    # Qwen's recommended LIVE values ...
+    --temp 0.7 ...
+
+A backslash joins the next line, so the `#` commented out **the entire rest of
+the command**. Every flag after `--spec-draft-backend-sampling` vanished,
+including `--reasoning off`. `bash -n` passes, the server starts, and nothing
+complains — sampling silently fell back to the GGUF's own generation config
+(temp 1.0, top_p 0.95, min_p 0.05), which is close enough to plausible that it
+does not look wrong. Only `podman top` showed the truncated argv.
+
+Rule: never put a comment inside a line-continuation block. Verify a launcher by
+reading the process's actual argv, not by reading the script.
+
+### Live sampling costs nothing measurable here
+
+Concern was that sampling would lower MTP draft acceptance and cost throughput,
+since the published figures are all greedy. Same red-black-tree prompt:
+
+    temp 0 greedy      19.49 tok/s   72.4% accept
+    temp 0.7 + pp1.5   20.04 tok/s   73.9% accept
+
+Within noise, no penalty. The benchmark numbers elsewhere in this ledger remain
+greedy measurements and should stay labelled that way, but there is no
+throughput argument for running an agent greedy.
