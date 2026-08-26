@@ -16,7 +16,7 @@
           }
         },
         "compact": {
-          "name": "[internal] compaction worker - do not select",
+          "name": "[internal] compaction worker - not for chat",
           "limit": {
             "context": 262144,
             "output": 8192

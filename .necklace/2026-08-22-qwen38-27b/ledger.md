@@ -748,3 +748,61 @@ Verified end to end rather than by inspection:
 
 Installed version is opencode 1.18.23, not the 1.18.19 pinned in
 `harness/Containerfile.opencode` from the first cycle.
+
+## The memory ceiling I quoted was wrong
+
+I told Nathan the worst case was bounded at 81 GiB by construction: weights and
+the full 262144 KV allocated up front, plus an 8 GiB prompt-cache cap. The
+first half is right. The arithmetic was not.
+
+Observed after ordinary use — a handful of opencode round trips, nothing
+adversarial:
+
+    at load                60 GiB (46 + 14)
+    after a few requests   79 GiB used
+    after more             91 GiB used, 31 GiB free
+
+31 GiB free against a 42.5 GiB build is not the margin I described.
+
+### Why it was invisible, and where to actually look
+
+`podman stats` reported 4.8 GB for kairic-serve and 1.3 GB for compact-serve —
+6 GB between them, while the system showed 91 GiB used. The weights and caches
+live in **GTT**, which is GPU-visible memory, not process RSS. GTT read 71.3 GiB
+at the same moment.
+
+    watch: /sys/class/drm/card1/device/mem_info_gtt_used
+    not:   podman stats, ps, or anything else RSS-based
+
+This is the same class of mistake as measuring prose and calling it a coding
+benchmark: the instrument was reporting something real, just not the thing.
+
+### Response
+
+`CACHE_RAM` lowered from the vendor's 8192 to 4096 in
+`config/llama-swap-kairic.yaml`. It is the one knob that bounds the growth.
+Cost is prompt-cache hit rate on repeated prefixes. `-ctxcp 32` stays, because
+the card states checkpoints are required for correct recurrent-state restore on
+this hybrid model — dropping them trades memory for wrong answers.
+
+The new ceiling is *projected*, not measured. The measured facts are 91 GiB at
+8192, and that GTT is where to watch.
+
+## opencode has no way to hide a model that compaction still uses
+
+The compaction model appears in the desktop model picker as a selectable chat
+model, which it should not be. The available mechanisms and what they do:
+
+| approach | hides it | still usable by compaction |
+|---|---|---|
+| `status: "deprecated"` | yes | **no** — the model stops resolving |
+| provider `blacklist` | yes | no, same reason |
+| nothing | no | yes |
+
+Tested: with `status: "deprecated"`, `opencode models` no longer lists
+`contract/compact` and `opencode run --model contract/compact` fails with
+`UnknownError`, while `contract/code` continues to work. Per-model config
+carries no `hidden` field; `hidden` exists only on `AgentConfig`.
+
+So it stays visible. Renaming it to something obviously internal is the whole
+available remedy.
