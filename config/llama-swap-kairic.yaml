@@ -19,9 +19,11 @@
 # RSS -- `podman stats` showed 6 GB between both containers while GTT held
 # 71.3 GiB. Watch mem_info_gtt_used, not RSS, or the growth is invisible.
 #
-# CACHE_RAM is therefore 4096 rather than the vendor's 8192: it is the one knob
-# that bounds the growth, and 31 GiB free was closer to Nathan's 42.5 GiB build
-# than is comfortable. Cost is a lower prompt-cache hit rate on repeated
+# CACHE_RAM is 4096 rather than the vendor's 8192 as a PARTIAL mitigation. The
+# growth was 17 GiB (74 -> 91 used); the prompt cache explains at most 8 of it
+# and halving the cap recovers at most 4. The rest is unattributed -- likely
+# -ctxcp 32 checkpoints and the MTP draft context, neither of which --cache-ram
+# bounds. Do not treat this number as a memory guarantee. Cost is a lower prompt-cache hit rate on repeated
 # prefixes. -ctxcp 32 stays, because the card states checkpoints are required
 # for correct recurrent-state restore on this hybrid model.
 

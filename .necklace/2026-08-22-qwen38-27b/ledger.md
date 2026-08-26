@@ -780,7 +780,22 @@ benchmark: the instrument was reporting something real, just not the thing.
 ### Response
 
 `CACHE_RAM` lowered from the vendor's 8192 to 4096 in
-`config/llama-swap-kairic.yaml`. It is the one knob that bounds the growth.
+`config/llama-swap-kairic.yaml`. This is a **partial mitigation, not a bound**,
+and the earlier wording here calling it "the one knob that bounds the growth"
+was wrong. Corrected accounting:
+
+    baseline, no models        13 GiB used
+    both models loaded         74 GiB used   -> 61 GiB of models
+    observed peak              91 GiB used   -> +17 GiB of growth
+
+The prompt cache can account for at most 8 of those 17 GiB, so roughly 9 GiB is
+unattributed, and halving CACHE_RAM recovers at most 4. Candidates for the rest,
+none of them bounded by `--cache-ram`: the 32 context checkpoints
+(`-ctxcp 32`), which snapshot recurrent state for a 65-block hybrid; the MTP
+draft context; and compute buffers sized by `-b 2048 / -ub 512` during large
+prefills. Not isolated — measuring it means watching
+`mem_info_gtt_used` while varying one flag at a time, which is a deliberate
+experiment nobody has asked for.
 Cost is prompt-cache hit rate on repeated prefixes. `-ctxcp 32` stays, because
 the card states checkpoints are required for correct recurrent-state restore on
 this hybrid model — dropping them trades memory for wrong answers.
