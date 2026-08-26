@@ -47,6 +47,14 @@ readonly library_path="$server_dir:$rocm/lib:$rocm/lib/rocm_sysdeps/lib:$rocm/li
 # tool-calling loop re-emits the same command until something kills it --
 # observed doing exactly that in opencode for the better part of an hour.
 #
+# Reasoning is ON with format 'deepseek', not the vendor runner's
+# '--reasoning off --reasoning-format none'. Two separate things were wrong for
+# interactive use: 'off' means no thoughts are generated at all, and 'none'
+# leaves whatever tags appear unparsed inside message.content -- which is how you
+# get empty <think></think> rendered as literal text. 'deepseek' extracts them
+# into message.reasoning_content, which is the field opencode renders as a
+# thinking block.
+#
 # Do not put comments inside the continuation lines below. A backslash joins the
 # next line, so a '#' there comments out the remainder of the command; doing that
 # silently dropped every flag after --spec-draft-backend-sampling, including
@@ -96,4 +104,6 @@ exec /usr/bin/env \
     --temp ${KAIRIC_TEMP:-0.7} --top-p ${KAIRIC_TOP_P:-0.8} \
     --top-k ${KAIRIC_TOP_K:-20} --min-p 0.0 \
     --presence-penalty ${KAIRIC_PRESENCE_PENALTY:-1.5} \
-    --reasoning off --reasoning-format none --reasoning-budget -1
+    --reasoning ${KAIRIC_REASONING:-on} \
+    --reasoning-format ${KAIRIC_REASONING_FORMAT:-deepseek} \
+    --reasoning-budget ${KAIRIC_REASONING_BUDGET:--1}

@@ -928,3 +928,39 @@ returned empty. LSP will matter for code work, not for editing Resume.org.
 `opencode debug` is the tool for this class of question — `debug config` shows
 the resolved configuration after merging, which answers "did my config actually
 take effect" directly instead of by inference.
+
+## Empty <think></think> blocks: two wrong flags, not one
+
+opencode rendered literal empty `<think></think>` pairs. The vendor runner ends
+with:
+
+    --reasoning off --reasoning-format none --reasoning-budget -1
+
+Both of the first two were wrong for interactive use, for different reasons.
+`--reasoning off` means no thoughts are generated at all, which is why the tags
+were empty. `--reasoning-format none` leaves whatever tags do appear *unparsed
+inside* `message.content`, which is why they showed up as literal text in the
+transcript rather than as a thinking block.
+
+Fixed to `--reasoning on --reasoning-format deepseek`, overridable through
+`KAIRIC_REASONING`, `KAIRIC_REASONING_FORMAT` and `KAIRIC_REASONING_BUDGET`.
+`deepseek` extracts thoughts into `message.reasoning_content`, the field
+opencode renders as a collapsible thinking block. `"reasoning": true` added to
+the `code` model in `config/opencode-kairic.jsonc` so opencode expects it.
+
+Verified on a riddle prompt:
+
+    reasoning_content: "We need answer classic riddle... Interpret: all but 9 die mean..."
+    content:           "**9 sheep are left.** ..."
+
+Separated correctly. The vendor's choice is right for their purpose — their
+whole release is qualified on byte-identical deterministic output, and thinking
+tokens would wreck that. It is the third setting in that runner (after the
+greedy sampler and the benchmark cache size) that is correct for measurement and
+wrong for use. The pattern is worth stating plainly: a benchmark runner is not a
+serving configuration, and every default in one should be re-examined rather
+than inherited.
+
+Cost: thinking generates extra tokens before the answer, so first-token latency
+rises. `KAIRIC_REASONING_BUDGET` caps it if that becomes annoying; -1 is
+unrestricted.

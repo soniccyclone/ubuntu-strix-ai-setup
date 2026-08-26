@@ -13,7 +13,8 @@
           "limit": {
             "context": 262144,
             "output": 32768
-          }
+          },
+          "reasoning": true
         },
         "compact": {
           "name": "[internal] compaction worker - not for chat",
