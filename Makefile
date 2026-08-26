@@ -186,7 +186,9 @@ kairic-install:          ## Install the Kairic contract units (one time)
 	@cp systemd/llama-swap-kairic.service ~/.config/systemd/user/
 	@systemctl --user daemon-reload
 	@echo "installed. 'make kairic-up' to start."
-	@echo "opencode: export OPENCODE_CONFIG=$(PWD)/config/opencode-kairic.json"
+	@mkdir -p ~/.config/opencode
+	@ln -sfn $(PWD)/config/opencode-kairic.jsonc ~/.config/opencode/opencode.jsonc
+	@echo "opencode config linked at ~/.config/opencode/opencode.jsonc"
 
 kairic-up:               ## Start Kairic 27B + 4B compaction, both resident (60 GiB)
 	@avail=$$(free -g | awk 'NR==2{print $$7}'); 	  if [ "$$avail" -lt 70 ]; then 	    echo "ABORT: $${avail} GiB available, this needs 60 and leaves nothing." >&2; 	    echo "Something else is holding memory. 'make status' first." >&2; exit 1; fi

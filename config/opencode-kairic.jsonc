@@ -4,7 +4,7 @@
   "provider": {
     "contract": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "Kairic contract (llama-swap)",
+      "name": "Kairic contract (local)",
       "options": { "baseURL": "http://127.0.0.1:8080/v1" },
       "models": {
         "code": {
@@ -24,8 +24,8 @@
 
   "agent": {
     "compaction": { "model": "contract/compact" },
-    "title":      { "model": "contract/compact" },
-    "summary":    { "model": "contract/compact" }
+    "title": { "model": "contract/compact" },
+    "summary": { "model": "contract/compact" }
   },
 
   "compaction": {

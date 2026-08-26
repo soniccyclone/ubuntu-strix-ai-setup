@@ -722,3 +722,29 @@ On the workload the card publishes for the mode this machine will actually run,
 yes — reproduced to 0.05%, and beaten in fast mode. The 47.73 headline remains
 untested, because that is 164 tasks and we ran ten. Prose remains at roughly
 half the published slice and is still unexplained.
+
+## opencode reads one path, and it is not the one an env var points at
+
+The first instructions said to export `OPENCODE_CONFIG`. That is wrong for the
+way this gets used. The desktop app is launched from the desktop, not from a
+shell, so it never sees anything exported in `.bashrc` — it came up showing
+OpenCode's own free hosted models with no `contract` provider at all.
+
+opencode reads `~/.config/opencode/opencode.jsonc`, and the app creates that
+file itself on first launch (containing only `$schema`). Note the extension:
+`.jsonc`, not `.json`.
+
+The repo copy is now `config/opencode-kairic.jsonc` and
+`~/.config/opencode/opencode.jsonc` is a symlink to it, so the configuration
+stays version-controlled while sitting at the only path that works for both the
+CLI and the GUI. `make kairic-install` creates the symlink.
+
+Verified end to end rather than by inspection:
+
+    opencode models              -> contract/code, contract/compact
+    opencode run --model contract/code     -> "KAIRIC OK"
+    opencode run --model contract/compact  -> "COMPACT OK"
+    memory with both loaded      79 GiB used, 43 GiB free
+
+Installed version is opencode 1.18.23, not the 1.18.19 pinned in
+`harness/Containerfile.opencode` from the first cycle.
