@@ -9,9 +9,21 @@
 # Run one contract or the other, never both.
 #
 # Measured on this machine, 2026-08-23 (repl/kairic-humaneval.sh):
-#   code    46 GiB resident   56.72 tok/s fast path / 41.89 compatibility
-#   compact 14 GiB resident   1025 tok/s prefill, 34.0 tok/s generation
-#   total   60 GiB of 122, leaving ~62 GiB for Nathan's own work
+#   code    46 GiB at load    56.72 tok/s fast path / 41.89 compatibility
+#   compact 14 GiB at load    1025 tok/s prefill, 34.0 tok/s generation
+#   at load 60 GiB; AFTER USE it climbed to 91 GiB used / 31 GiB free.
+#
+# That climb is the point to understand. The weights and the full 262144 KV are
+# allocated up front, so context size costs nothing further. What grows is the
+# prompt cache and its context checkpoints, and they live in GTT, not in process
+# RSS -- `podman stats` showed 6 GB between both containers while GTT held
+# 71.3 GiB. Watch mem_info_gtt_used, not RSS, or the growth is invisible.
+#
+# CACHE_RAM is therefore 4096 rather than the vendor's 8192: it is the one knob
+# that bounds the growth, and 31 GiB free was closer to Nathan's 42.5 GiB build
+# than is comfortable. Cost is a lower prompt-cache hit rate on repeated
+# prefixes. -ctxcp 32 stays, because the card states checkpoints are required
+# for correct recurrent-state restore on this hybrid model.
 
 macros:
   m: /home/nathan/models
@@ -40,7 +52,7 @@ models:
       -e KAIRIC_GDN_OUTPUT_SIDECAR=${k}/Qwen3.8-27B-Kairic-IU4-GDN-Output.pfs
       -e KAIRIC_EDGE_COMPATIBILITY_MODE=1
       -e CONTEXT=262144
-      -e CACHE_RAM=8192
+      -e CACHE_RAM=4096
       -e HOST=127.0.0.1 -e PORT=${PORT}
       localhost/kairic:v1.1 /src/scripts/run-kairic-edge-gfx1151.sh
     # No ttl. This is the daily driver; paying a 90-second reload because you
