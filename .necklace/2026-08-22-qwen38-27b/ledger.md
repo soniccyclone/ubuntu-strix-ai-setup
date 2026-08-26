@@ -662,3 +662,63 @@ worth more than the eleven minutes, delete `agent.compaction.model` from
 `config/opencode-kairic.json` and compaction falls back to `code`
 automatically — the fallback is the documented behaviour at
 `compaction.ts:359-361`, not an accident.
+
+## Scorecard: did we reach the published numbers?
+
+The card's most directly comparable figure is not in any of its results tables.
+It is one sentence in the "Recommended launch" prose:
+
+> Compatibility measured 41.87 versus 46.37 generated tokens/s on that short
+> coding subset, a 9.70% reduction
+
+That is HumanEval 0-9 in compatibility mode — the same ten tasks and the same
+mode measured here. It went unnoticed on the first read because attention was
+on the 47.73 headline.
+
+| claim | card | ours | verdict |
+|---|---:|---:|---|
+| HumanEval 0-9, compatibility | 41.87 | **41.89** | matched, 0.048% |
+| HumanEval 0-9, fast path (gate) | 46.37 | **56.72** | exceeded +22.3% |
+| HumanEval 0-9, hot slice | 48.78 | **56.72** | exceeded +16.3% |
+| Natural prose slice | 34.88 | 16.8-21.0 | **not reached, ~half** |
+| Forced-512 prose slice | 30.87 | 16.5-21.0 | **not reached** |
+| Aggregate PP | 358.45 | 228 | not comparable, see below |
+| 164-task aggregate TG | 47.73 | — | **never tested** (we ran 10 tasks) |
+| Peak TG | 106.68 | — | never tested |
+| HumanEval Base / Plus | 158 / 152 | — | never scored |
+| IU4 instruction harness | 104.66 TOPS | — | never tested |
+| Prompt cache reduction | 98.39-99.87% | — | never tested |
+| Served verification A/B | 48.73 -> 52.57 | — | never tested |
+
+Matching a published throughput figure to five hundredths of a token per second
+on an independent build of the source is about as strong a confirmation as this
+kind of measurement offers. It also retires any remaining doubt about the
+harness: the container, the CK patch, the sidecar wiring and the runner are all
+doing what the publisher's own machine did.
+
+### The anomaly worth keeping visible
+
+Compatibility mode matches exactly while the fast path comes in 16-22% *above*
+every figure they publish for it. Their fast-to-compatibility ratio is 1.107;
+ours is 1.354. Both cannot be right about the same fast path.
+
+Since the compatibility number reproduces to within 0.05%, the setup is not in
+question — whatever differs is on the fast-path side. The likeliest candidate is
+that our "hot" second pass fed the prompt cache in a way their release gate did
+not, which would inflate our fast number rather than deflate theirs. Not
+resolved, and not worth resolving: the number that governs daily use is the
+compatibility one, and that one is confirmed.
+
+### Aggregate PP is not comparable and should not be read as a miss
+
+Their 358.45 is a suite aggregate, and their own PP sweep ranges 325-529 tok/s
+across 96-to-512-row shapes. Our 228 came from a single 19,625-token prompt,
+which is a different regime entirely. Nothing here contradicts their figure; the
+two numbers simply do not measure the same thing.
+
+### Answer
+
+On the workload the card publishes for the mode this machine will actually run,
+yes — reproduced to 0.05%, and beaten in fast mode. The 47.73 headline remains
+untested, because that is 164 tasks and we ran ten. Prose remains at roughly
+half the published slice and is still unexplained.
