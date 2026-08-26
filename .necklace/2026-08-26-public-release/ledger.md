@@ -78,3 +78,92 @@ is undefined until the overlay is present. That is a real cost and it is the
 right trade — the alternative is a file that loads on any machine and silently
 serves nothing, which is the failure mode this project keeps writing tests
 against.
+
+`repl/macro-in-env.sh` closes the last gap in that design: `llama-swap.yaml`
+puts `LD_LIBRARY_PATH` in a model's `env:` list rather than in `cmd`, and
+macros expand there too — the launched process reported
+`SEEN=/srv/overlay/opt/llama.cpp/lib`. So one overlay covers every hardcoded
+path in both YAMLs, with no special case.
+
+## Two of my six items were wrong, and the research is what caught it
+
+**ROCmFPX is not a conflict.** I reported `ciru-ai/ROCmFPX` and
+`charlie12345/ROCmFPX` as two URLs for one project with one presumably stale.
+`harness/Containerfile.kairic:3` already answers it:
+
+> Separate image from rocmfpx-hip on purpose: different fork (ciru-ai, not
+> charlie12345), different branch, and it needs a patched Composable Kernel
+> that the other build does not.
+
+Both images exist locally (`localhost/kairic:v1.1`,
+`localhost/rocmfpx-hip:0fc9568`) and both are load-bearing: the README's
+headline compares them. Nothing to delete. The real gap is that this lives in a
+Containerfile comment, so a stranger reading the README sees two throughput
+numbers with no way to learn they came from two different people's forks.
+
+**`docs/upstream-patches.md` does not contain the defect analysis.** Grepping it
+for the skeleton defect returns nothing. Its four sections are patch notes —
+what was changed locally, why, and the condition that retires each one. Section
+4 does contradict a published claim (`Limbicnation/pixel-art-lora`'s model card
+says RGBA; every sprite is PNG colour type 2), but that fact is load-bearing:
+`tools/key_bg.py` exists because of it and `tests/m01-sprite.bats` pins it.
+Removing it would leave the workaround unexplained.
+
+The defect analysis is only in beads issue `p11`.
+
+## The dolt audit
+
+No dolt binary was present; installed v2.3.1 user-level under
+`~/.local/opt/dolt` and queried `.beads/embeddeddolt/ubuntu_strix_ai_setup`
+directly. Read-only, nothing running against the database at the time.
+
+Branches: `main` and `remotes/origin/main`. Nothing else. The
+`refs/heads/__dolt_remote_info__` that `git ls-remote` shows is the git-remote
+transport's bookkeeping, not a dolt branch.
+
+Seven of 32 tables hold anything. `config` (10 rows) is compaction settings and
+the issue prefix — no `linear.api_key`, no `github.token`, which is what the
+commented-out keys in `.beads/config.yaml` warn can live there. `metadata` is
+four UUIDs. `local_metadata` is dependency-coordination hashes.
+
+Every issue ID appearing in `events` also exists in `issues`: 29, 29, and 29 in
+the jsonl. No deleted issues are hiding in the database.
+
+Across all 243 distinct historical text blobs in `dolt_history_issues`: no
+secret-shaped strings, no email addresses, no absolute home paths. The only
+identity fields are `nathanjbarlow@gmail.com` and `Nathan Barlow`, both already
+public on all 114 git commits.
+
+**The finding that matters:** `p11` exists in ten versions of
+`dolt_history_issues`, and the database carries 1,648 historical rows against 29
+current ones across 175 dolt commits. Editing or deleting the issue writes a
+*new* version; it does not remove the ten. The same text is in one git commit
+(`7b0c5cc`) via `.beads/issues.jsonl`.
+
+So "remove the defect analysis" is three different jobs depending on how far it
+has to go, and only the first is cheap. That is a decision for Nathan, not a
+detail — recorded as an open question in the spec.
+
+## Licensing has a precedent in Nathan's own work
+
+The repo carries generated third-party content: `.beads/hooks/*` and the marked
+blocks in `AGENTS.md` / `CLAUDE.md` come from beads, which is MIT
+("Beads Contributors"). `node_modules/gltf-validator` is Apache-2.0 and is
+gitignored, so it is not distributed.
+
+`.claude/skills/necklace*/` looked like an ownership question and is not:
+`soniccyclone/necklace` is Nathan's own repo, sole author, already public,
+already Apache-2.0, with the appendix filled in as `Copyright 2026 Nathan
+Barlow`, no NOTICE file, and a three-line `## License` section in its README.
+
+Same author, same license, so copying its pattern here is consistent rather
+than a choice needing defence. Follow it exactly.
+
+## Noticed while reading, not in scope unless Nathan says so
+
+`config/llama-swap.yaml`'s header says it binds `0.0.0.0` and that "the LAN is
+closed with a firewall rule instead; see docs/privileged-steps.md". The file's
+own `common` macro passes `--host 127.0.0.1`, and `docs/privileged-steps.md`
+section 3 exists specifically to say that design was abandoned and no firewall
+is needed. The comment describes a superseded design and contradicts both the
+code below it and the document it cites. It sits in a file item 2 already opens.
