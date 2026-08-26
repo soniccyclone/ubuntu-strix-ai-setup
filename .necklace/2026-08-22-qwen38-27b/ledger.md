@@ -1108,3 +1108,25 @@ landed, because on this stack reading the config is not evidence. `bash -n`
 passed a launcher whose command had been silently truncated by a comment inside
 a line continuation, and the server started and served plausible-looking output
 for two restarts before `podman top` showed the missing flags.
+
+## The operations doc had no throughput numbers
+
+They were in `README.md` and `bench/results.md` but nowhere in
+`docs/kairic-operations.md`, which is the file someone is actually handed. Added
+a Performance section, and with it the caveat that matters more than the table:
+
+**the published figures are benchmark-configuration numbers and will not appear
+in ordinary chat.** They were taken greedy, reasoning off, hot cache. Someone
+following this guide will send one prose question, see ~17 tok/s, and conclude
+the install is broken. It is not — draft acceptance tracks how predictable the
+output is, so code accepts ~76% and runs at 41-57 while discursive prose accepts
+46-47% and runs at 16-21. Same model, same settings.
+
+The section also gives a one-command self-check: send a coding prompt twice and
+read the server's own `timings`. Roughly 20 tok/s cold with acceptance above 70%
+means the IU4 lane and MTP are both engaging; acceptance near zero means the
+`--spec-draft-*` flags did not land, which is a failure this cycle produced
+twice.
+
+Documenting a headline number without documenting its regime is how a benchmark
+becomes a support burden.

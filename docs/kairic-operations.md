@@ -70,6 +70,60 @@ Three model entries, deliberately:
 slots and there are two. If you change `-np`, change this to match or compaction
 will fire after the slot has already overflowed.
 
+## Performance, and what to expect
+
+Measured on this machine. HumanEval tasks 0-9, chat-adapted, hot cache, MTP
+speculation on in every arm, matched settings. Method: `bench/results.md`.
+
+| configuration | tok/s | draft accept |
+| --- | ---: | ---: |
+| Kairic IU4, greedy fast path | 56.72 | 76.2% |
+| Kairic IU4, compatibility mode | 41.89 | 76.2% |
+| ROCmFP4 + MTP, same engine family | 22.21 | 95.7% |
+| stock Q4_K_M, upstream llama.cpp Vulkan | 12.23 | — |
+
+The vendor publishes 48.78 for that same ten-task slice and 41.87 for
+compatibility mode; ours reproduces the latter to within 0.05%.
+
+**Those are benchmark-configuration numbers and you will not see them in
+ordinary chat.** They were taken greedy, with reasoning off and a hot prompt
+cache. Two things move the figure a long way:
+
+*Draft acceptance tracks how predictable the output is.* MTP speculation only
+pays when drafts are accepted. Code accepts ~76% and runs at 41-57 tok/s.
+Discursive prose accepts 46-47% and runs at 16-21. Same model, same settings —
+the workload is doing it. A single cold prose question landing near 17 tok/s is
+normal, not a fault.
+
+*Cache warmth.* Cold on the same ten tasks was 28.41 against 41.89 hot. Agent
+sessions reuse thousands of tokens of prefix per turn, so real use trends toward
+the hot number as a session goes on.
+
+Interactive sampling costs nothing measurable. The same coding prompt at temp 0
+greedy gave 19.49 tok/s at 72.4% acceptance; at temp 1.0 with thinking enabled,
+20.04 tok/s at 73.9%. Thinking does add tokens before the answer, so
+time-to-first-token rises even though throughput does not fall — that is what
+`KAIRIC_REASONING_BUDGET` is for.
+
+Notably, the gain here is not acceptance. ROCmFP4 accepts 95.7% of its drafts
+and is still 2.5x slower. Kairic accepts fewer and wins on how fast it verifies
+them, which is the IU4 lane doing its job on 2-to-5-row verification batches.
+The vendor does not claim M1 decode is native IU4, and the measurements agree.
+
+**Checking your own install** without running a suite: send one coding prompt
+twice and read the server's own timings. The second is the number that matters.
+
+```
+curl -s localhost:8080/v1/chat/completions -H 'Content-Type: application/json' \
+  -d '{"model":"code","messages":[{"role":"user","content":"Write a red-black tree insert in C with comments."}],"max_tokens":384}' \
+  | python3 -c 'import json,sys; t=json.load(sys.stdin)["timings"]; \
+print("%.2f tok/s, draft accept %.1f%%" % (t["predicted_per_second"], 100.0*t.get("draft_n_accepted",0)/max(t.get("draft_n",1),1)))'
+```
+
+Roughly 20 tok/s on a cold single prompt and acceptance above 70% means the IU4
+lane and MTP are both working. If acceptance is near zero, speculation is not
+engaging and the `--spec-draft-*` flags did not land.
+
 ## Tuning levers
 
 All are environment variables on the `code` role in
