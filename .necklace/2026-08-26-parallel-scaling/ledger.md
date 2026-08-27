@@ -106,3 +106,36 @@ one run is noise wearing a decimal point. With sd ≈ 1.48 on a mean of 28, five
 repeats give a standard error near 0.66, enough to separate a 10% difference
 with room to spare. Five is the floor, and every published figure needs its
 spread beside it.
+
+## The benchmark has to run the same workload, or the baseline floats
+
+`--spec-type` takes `none`, so the MTP-off arm is a clean flag rather than a
+build. Worth noting that llama.cpp's default for it *is* `none` — the runner
+opting into `draft-mtp` is a deliberate choice, not an inherited default. There
+is no environment variable for it, so the shipped runner needs the same
+`KAIRIC_SLOTS`-style toggle it already has for slots.
+
+More important, and nearly missed: the conditions behind 41.89 are specific.
+HumanEval tasks 0-9 chat-adapted, greedy, 512-token cap, reasoning off,
+compatibility mode, **hot** prompt cache. `docs/kairic-operations.md` already
+records that the workload dominates the result:
+
+> Draft acceptance tracks how predictable the output is. Code accepts ~76% and
+> runs at 41-57 tok/s. Discursive prose accepts 46-47% and runs at 16-21.
+
+My first harness used a deliberately mixed prompt set — page faults, a red-black
+tree, drum memory, a TCP handshake. Two of those four are discursive prose. That
+set would have produced an acceptance rate somewhere between 46% and 76% and a
+rate somewhere between 16 and 57, and the `-np 1` arm would not have matched the
+published figure at all. Every scaling ratio would then be measured against a
+baseline that does not correspond to anything published, while looking perfectly
+respectable.
+
+The sweep reuses the HumanEval slice the published figure was taken on. Its
+`-np 1` arm has a number it must reproduce, which makes the harness itself
+falsifiable rather than merely self-consistent.
+
+The generic-prompt harness is not wasted — a prose arm is worth one row, because
+acceptance is what MTP's value rides on and prose is where acceptance already
+collapses. If MTP stops paying under concurrency, prose at `-np 8` is where it
+will be worst.
