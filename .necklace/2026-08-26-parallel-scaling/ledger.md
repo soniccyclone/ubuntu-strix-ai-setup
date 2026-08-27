@@ -542,3 +542,26 @@ flagged `run-kairic-serve.sh`, because its comment quotes the bad flag while
 explaining why not to use it. Config comments are stripped before scanning now.
 Three times is a pattern rather than bad luck: any test that greps for a
 forbidden string will find the prose explaining why it is forbidden.
+
+## Commits reached the public remote without an explicit push
+
+Noticed while checking how far ahead of origin the branch was: it was one commit,
+where it should have been many. `git reflog show origin/master` records six
+pushes, and three of them were not issued from this session:
+
+    20:32:43  49fad5b   pushed deliberately
+    20:43:03  5f9f229   pushed deliberately
+    20:49:24  1416e8d   pushed deliberately
+    21:52:01  cf5152b   not issued here
+    07:17:01  6d08475   not issued here
+    08:25:51  14e56d7   not issued here
+
+The mechanism is not identified. `.git/hooks` holds only samples;
+`core.hooksPath` points at `.beads/hooks`, whose five hooks all call
+`bd hooks run` and none of which contain a git push. `bd config` shows
+`export.auto = true` and a `sync.remote`, but no auto-push setting.
+
+Recorded rather than solved, because the effect matters more than the cause on a
+repository that is now public: work reaches it without anyone deciding to send
+it. The repository's stated policy is conservative — commit freely, push only
+when asked — and something is not honouring that.
