@@ -1,0 +1,13 @@
+label	group	slots	ctx_total	ctx_per_slot	cache_ram	spec_type	spec_impls	workload	pool	reps	per_stream_tps	per_stream_spread_pct	aggregate_tps	aggregate_spread_pct	draft_n	draft_accept_pct	gtt_gib	provenance
+np1-mtp	main	1	262144	262144	16384	draft-mtp	draft-mtp+ngram-mod	humaneval	8	5	51.29	6.3	46.64	8.1	8316	72.8	47	measured on this box
+np1-nomtp	main	1	262144	262144	16384	none	ngram-mod	humaneval	8	5	35.55	14.9	31.21	16.6	7168	68.2	44	measured on this box
+np2-mtp	main	2	262144	131072	16384	draft-mtp	draft-mtp+ngram-mod	humaneval	8	5	29.28	9.5	46.33	8.4	8196	74.0	47	measured on this box
+np2-nomtp	main	2	262144	131072	16384	none	ngram-mod	humaneval	8	5	22.51	8.4	37.72	18.8	7040	68.7	44	measured on this box
+np4-mtp	main	4	262144	65536	16384	draft-mtp	draft-mtp+ngram-mod	humaneval	8	5	15.01	11.8	48.2	11.6	7904	76.7	48	measured on this box
+np4-nomtp	main	4	262144	65536	16384	none	ngram-mod	humaneval	8	5	13.83	22.9	42.53	21.5	6720	73.6	45	measured on this box
+np8-mtp	main	8	262144	32768	16384	draft-mtp	draft-mtp+ngram-mod	humaneval	8	5	9.44	4.6	63.13	8.9	7800	77.8	51	measured on this box
+np8-nomtp	main	8	262144	32768	16384	none	ngram-mod	humaneval	8	5	8.17	11.5	51.37	14.4	6656	73.9	45	measured on this box
+np1-win32k-mtp	window	1	32768	32768	16384	draft-mtp	draft-mtp+ngram-mod	humaneval	8	5	46.08	12.3	41.96	11.2	8316	72.8	31	measured on this box
+np1-cache8192	cache	1	262144	262144	8192	draft-mtp	draft-mtp+ngram-mod	humaneval	8	5	50.76	7.0	46.01	9.6	8316	72.8	47	measured on this box
+np8-prose-mtp	prose	8	262144	32768	16384	draft-mtp	draft-mtp+ngram-mod	prose	8	5	6.8	52.2	33.93	16.4	26376	57.0	51	measured on this box
+np8-prose-nomtp	prose	8	262144	32768	16384	none	ngram-mod	prose	8	5	3.97	45.8	26.82	23.5	3840	44.3	45	measured on this box

@@ -31,8 +31,14 @@ def f(row, key):
         return None
 
 
-def verdict(a, b, key="aggregate_tps", spread_key="aggregate_spread_pct"):
-    """Compare two arms, refusing to call a difference the spread cannot resolve."""
+def verdict(a, b, key="aggregate_tps", spread_key="aggregate_spread_pct",
+            labels=("MTP faster", "MTP slower")):
+    """Compare two arms, refusing to call a difference the spread cannot resolve.
+
+    `labels` names what winning means for this particular comparison. The
+    controls are not about MTP at all, and printing "MTP faster" against a
+    prompt-cache comparison would be nonsense dressed as a result.
+    """
     fa, fb = f(a, key), f(b, key)
     if fa is None or fb is None or fa <= 0 or fb <= 0:
         return "no data", 0.0
@@ -41,7 +47,7 @@ def verdict(a, b, key="aggregate_tps", spread_key="aggregate_spread_pct"):
     band = ((f(a, spread_key) or 0.0) + (f(b, spread_key) or 0.0)) / 2
     if abs(gap) < band:
         return "inconclusive", gap
-    return ("MTP faster" if gap > 0 else "MTP slower"), gap
+    return (labels[0] if gap > 0 else labels[1]), gap
 
 
 def scaling_table(rows):
@@ -93,14 +99,15 @@ def controls(rows):
     out = []
     a, b = by.get("np1-mtp"), by.get("np1-cache8192")
     if a and b:
-        verd, gap = verdict(a, b)
+        verd, gap = verdict(a, b, labels=("16384 faster", "8192 faster"))
         out.append(
             f"- **Prompt cache 16384 vs 8192 MiB**, one slot, everything else equal: "
             f"{a['aggregate_tps']} against {b['aggregate_tps']} tok/s aggregate "
             f"({gap:+.1f}%, {verd}).")
     a, b = by.get("np1-mtp"), by.get("np1-win32k-mtp")
     if a and b:
-        verd, gap = verdict(a, b)
+        verd, gap = verdict(a, b, labels=("larger window faster",
+                                          "smaller window faster"))
         out.append(
             f"- **Per-slot window 262144 vs 32768**, one slot, everything else equal: "
             f"{a['aggregate_tps']} against {b['aggregate_tps']} tok/s aggregate "
