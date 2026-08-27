@@ -27,6 +27,13 @@ legally use it. The repository description reads "Just setting up local AI
 stuff on my fancy new laptop", and the agent-instruction file carries three
 unfilled template prompts.
 
+**It contradicts itself about its own security posture.**
+`config/llama-swap.yaml`'s header says it binds `0.0.0.0` and that the LAN is
+closed with a firewall rule. Its own macro passes `--host 127.0.0.1` three
+lines below, and `docs/privileged-steps.md` section 3 exists to record that the
+firewall design was abandoned as unnecessary. The comment describes a
+superseded design and is the first thing a security-minded reader would check.
+
 **Its publication surface is larger than its file list.** Flipping visibility
 also publishes `refs/dolt/data`, which carries the issue database: 175 commits
 and 1,648 historical rows against 29 current ones. Queried directly with dolt
@@ -52,6 +59,7 @@ the ten.
 | Stranger reading the numbers | For each throughput figure in the headline comparison, they can name which upstream produced it and find that upstream, without opening a Containerfile |
 | Nathan | Before the repository is public, he can see what each published ref actually contains, and has decided rather than discovered what the issue database exposes |
 | Nathan | The claims the README already makes — one-command setup, 17 suites, every number measured here — are all still true afterwards |
+| Stranger auditing it | No tracked configuration makes a claim about its own behaviour that the file below it, or the document it cites, contradicts |
 | Third-party projects named | Their published claims are contradicted only where a shipped tool or test in this repository depends on the contradiction |
 
 ## Constraints
@@ -76,18 +84,24 @@ the ten.
 
 ## Approach
 
-**Move every machine-specific value into one generated file that the repository
-does not track, and let the tracked configurations reference it.** The setup
-script already computes these values and already generates one file this way;
-this extends that mechanism to cover the configurations rather than inventing a
-second one. The tracked configurations stay the files that actually run, remain
-readable on GitHub, and stop containing anyone's home directory.
+**Give the machine-specific values one gitignored home that a human edits, and
+derive everything else from it.** Setup writes that file once with detected
+defaults and never overwrites it again, so a value typed once survives every
+later run. It is the only place a path is configured, and it is the only
+mechanism: the environment-variable path that exists today goes away rather
+than competing with it, because two mechanisms produce a precedence question
+and the quieter one wins it (`repl/env-shared.sh`).
 
-This makes a tracked configuration inert on its own — it names values it does
-not define. That is the intended trade. The alternative is a file that loads on
-any machine and quietly serves the wrong thing, which is the failure mode this
-project already writes tests against, and llama-swap's fatal-on-unknown-macro
-behaviour turns the trade into a loud error rather than a silent one.
+The serving configurations cannot read that file directly, so setup derives
+what they need from it. Nothing regenerates the tracked configurations
+themselves — they stay the files that actually run, remain readable on GitHub,
+and stop containing anyone's home directory.
+
+This makes a tracked configuration inert on its own: it names values it does
+not define. That is the intended trade, and llama-swap's behaviour turns it
+into a loud error naming the missing value rather than a silent one. The
+alternative is a file that loads on any machine and quietly serves the wrong
+weights, which is the failure mode this project already writes tests against.
 
 **Adopt the licence pattern already in use in Nathan's other public
 repository**, and identify the generated third-party content rather than
@@ -101,6 +115,10 @@ numbers are.
 **Decide the publication surface before flipping, not after.** Enumerate what
 each published ref carries, and choose what the issue database does rather
 than inheriting it.
+
+**Correct what the tracked files claim about themselves.** A comment that
+survives the design it described is worse than no comment, because it is read
+as current.
 
 **Keep third-party criticism only where something shipped depends on it.** A
 documented workaround has to say what it works around. An analysis of a defect

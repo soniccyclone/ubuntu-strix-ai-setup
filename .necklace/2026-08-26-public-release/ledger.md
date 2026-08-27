@@ -209,3 +209,58 @@ commits and a rewritten dolt history are two separate rewrites of two stores
 that reference each other through `refs/dolt/data`. They have to be sequenced
 and verified together, not independently, and "beads still syncs afterwards" is
 a thing to prove rather than assume.
+
+## Nathan asked why not a gitignored .env, and he is right
+
+My design had setup generate the macro overlay from environment variables it
+already honours. Nathan asked why the machine values do not simply live in a
+gitignored `.env`. Three probes later, that is the better design, and the flaw
+it fixes is one I had not noticed.
+
+**What I missed.** `MODELS=/data make kairic-setup` works exactly once. Re-run
+setup without repeating the variable and the overlay is regenerated from
+`$HOME/models`. My design gave the values nowhere to live, so the machine's
+configuration depended on a stranger remembering an environment variable
+forever. A file is the obvious fix and I had walked past it.
+
+**Where his idea needs one correction.** `.env` cannot feed llama-swap
+directly — `envexpand.sh` already proved `KEY=value` is not a namespace it
+reads. So `.env` is the *human* surface and the macro overlay is derived from
+it. Two files, one of which nobody edits by hand.
+
+**And a real bug in the naive shape.** `repl/env-shared.sh` tests the obvious
+version: `-include .env` in the Makefile, `. ./.env` in the script. Make gets
+the precedence right — command line beats the file. The shell does not:
+
+    $ MODELS=/srv/from-command-line ./setup.sh
+    sh sees MODELS=/srv/from-env-file
+
+Sourcing assigns unconditionally, so the file clobbers what the caller
+exported and precedence runs backwards. Two mechanisms fighting, with the
+quieter one winning.
+
+Rather than paper over that with a capture-and-restore dance, `.env` becomes
+the sole source and the environment-variable path goes away. One place to look,
+no precedence to reason about. `repl/env-to-overlay.sh` runs the whole chain:
+
+    tracked config alone   -> error="model probe env: unknown macro '${opt}'"
+    .env first run         -> created with detected defaults
+    .env second run        -> exists, left untouched
+    derived overlay        -> macros: {m: /srv/user-edited-this, ...}
+    launched process       -> ARGV=/srv/user-edited-this/weights.gguf-5800
+
+The first line is the one worth keeping. A tracked config that cannot work
+alone says so by name, immediately, rather than loading and serving the wrong
+weights.
+
+## Folding in the stale contract comment
+
+`config/llama-swap.yaml`'s header claims the file binds `0.0.0.0` and that "the
+LAN is closed with a firewall rule instead". The macro three lines below passes
+`--host 127.0.0.1`, and `docs/privileged-steps.md` section 3 exists to record
+that the firewall design was abandoned and is not needed. The comment
+contradicts both the code under it and the document it cites.
+
+Nathan asked for it in scope. It is a public-facing falsehood about the
+security posture of the thing, in a file this cycle already rewrites, and it
+would be read by exactly the people most likely to check.
