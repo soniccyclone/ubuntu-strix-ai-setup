@@ -260,3 +260,38 @@ it. Recorded as-is, with the note that a real column would be firmer.
 All three share a shape with the failures the release cycle produced: an
 assertion narrower or looser than the thing it claims to cover, which passes
 without proving anything.
+
+## The sweep ran for 37 minutes after being stopped
+
+Stopping the background task reported success. It killed the wrapper, not the
+script: `bash ./bench/parallel-sweep.sh` kept running as its own process,
+launched further arms, and was found 37 minutes later holding 45 GiB with
+`--spec-type none -np 8` — an arm nobody was waiting for, on a machine that had
+been told the run was over.
+
+It surfaced by accident. A dry run printed `[REFUSED] need 60 GiB of GTT free,
+found 56` and the refusal was correct, which is the only reason anyone looked.
+Had the sweep been between arms at that moment, the check would have passed and
+the runaway would have kept going.
+
+Two things this says, and the first is not the interesting one.
+
+**A trap cannot help on SIGKILL.** `trap ... EXIT INT TERM` is right and it
+fired correctly every other time this cycle. It cannot fire when the process is
+killed outright, and no amount of care in the script changes that.
+
+**So the recovery path has to exist outside the script.** `make stop-all` is
+that path and it did not know the name `kairic-sweep`, because the sweep was
+new and the target's list is hand-maintained. A leak with no way to reap it
+short of knowing podman is exactly the situation this repository has a rule
+about.
+
+Fixed by adding the container to `stop-all` and by a test that derives the
+names from what the repository can actually launch — literal `--name` flags
+plus names held in a `CTR` variable, since the sweep uses the latter and a
+literal-only scan misses precisely the container that leaked. Verified it goes
+red when the name is removed again.
+
+The CUJ-06 tests were green throughout. They asserted the trap existed, which
+was true and insufficient. What was missing was an assertion about what happens
+when the trap cannot run.

@@ -223,7 +223,7 @@ status:                  ## What is running and what it is costing
 
 stop-all:                ## Stop EVERYTHING this repo can start, and prove it
 	@systemctl --user stop media-comfy media-engine media-rig llama-swap llama-swap-kairic contract-socket 2>/dev/null || true
-	@podman rm -f media-comfy media-engine media-rig contract-proxy kairic-serve compact-serve >/dev/null 2>&1 || true
+	@podman rm -f media-comfy media-engine media-rig contract-proxy kairic-serve compact-serve kairic-sweep >/dev/null 2>&1 || true
 	@for p in $$(pgrep -x python3 2>/dev/null); do \
 	   tr '\0' ' ' < /proc/$$p/cmdline 2>/dev/null | grep -q "serve\.py\|pipeline\.py\|pixel_ab" && kill $$p 2>/dev/null || true; done
 	@sleep 3

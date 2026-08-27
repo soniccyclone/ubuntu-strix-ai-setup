@@ -50,3 +50,31 @@ SWEEP=bench/parallel-sweep.sh
   grep -qE '\-\-name "?\$\{?CTR' "$SWEEP"
   grep -qE '^CTR=' "$SWEEP"
 }
+
+@test "stop-all reaps every container this repository can start" {
+  # A trap cannot fire on SIGKILL. When the sweep was killed mid-arm its
+  # container survived with 27 GiB resident, and stop-all did not know the name,
+  # so there was no recovery path that did not involve knowing podman.
+  # Literal --name flags, plus names held in a CTR variable: parallel-sweep.sh
+  # passes --name "$CTR", so a literal-only scan misses the container that
+  # actually leaked.
+  local names
+  names=$( { grep -rhoE -- '--name [a-z][a-z0-9-]*' \
+               bench/*.sh config/*.yaml systemd/*.service harness/*.sh 2>/dev/null \
+               | awk '{print $2}'
+             grep -rhoE '^CTR=[a-z][a-z0-9-]*' bench/*.sh tools/* 2>/dev/null \
+               | cut -d= -f2
+           } | sort -u )
+  [ -n "$names" ]
+  # The stop-all recipe specifically. Other targets have their own narrower
+  # podman rm lines and taking the first match in the file tests one of those.
+  local reaped
+  reaped=$(awk '/^stop-all:/{f=1} f&&/podman rm -f/{print; exit}' Makefile)
+  [ -n "$reaped" ]
+  for n in $names; do
+    case "$reaped" in
+      *" $n"*) ;;
+      *) echo "stop-all does not reap: $n"; return 1 ;;
+    esac
+  done
+}

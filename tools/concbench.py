@@ -40,6 +40,14 @@ PROSE = [
     "what each sequence number is for.",
     "Explain why a garbage collector's pause time and its throughput are in "
     "tension, and what generational collection buys.",
+    "Describe what a cache line is and why false sharing costs so much on a "
+    "multi-core machine.",
+    "Explain the difference between a mutex and a semaphore, and when each is "
+    "the wrong tool.",
+    "Describe how virtual memory lets two processes both believe they own the "
+    "same address, and what the MMU does about it.",
+    "Explain why floating-point addition is not associative, and what that costs "
+    "a parallel reduction.",
 ]
 
 HUMANEVAL_INSTRUCTION = (
@@ -88,12 +96,22 @@ def one_request(port, prompt, maxtok):
     }
 
 
-def batch(port, prompts, streams, maxtok, offset):
-    """One batch of `streams` concurrent requests. Returns the batch's figures."""
-    picks = [prompts[(offset + i) % len(prompts)] for i in range(streams)]
+def one_pass(port, prompts, streams, maxtok):
+    """Run the WHOLE task set through a pool of `streams` workers.
+
+    Every repeat runs the same tasks, so the spread across repeats measures the
+    machine rather than the tasks. An earlier version gave each repeat a
+    different task and reported 57% spread on an arm -- that was HumanEval
+    problems differing in length, not noise, and it made every arm
+    incomparable with every other.
+
+    Running the whole set at every slot count also keeps the workload identical
+    as concurrency changes, which is the only way the arms can be compared, and
+    matches how the published figure was taken.
+    """
     t0 = time.time()
     with ThreadPoolExecutor(max_workers=streams) as ex:
-        res = list(ex.map(lambda p: one_request(port, p, maxtok), picks))
+        res = list(ex.map(lambda p: one_request(port, p, maxtok), prompts))
     wall = time.time() - t0
     tok = sum(r["n"] for r in res)
     per = [r["tps"] for r in res if r["tps"]]
@@ -128,8 +146,12 @@ def main():
     ap.add_argument("--maxtok", type=int, default=512)
     ap.add_argument("--workload", choices=("humaneval", "prose"), default="humaneval")
     ap.add_argument("--tasks")
+    ap.add_argument("--pool", type=int, default=8,
+                    help="how many tasks make up one pass; must be >= the slot "
+                         "count or the extra slots sit idle")
     ap.add_argument("--warm", type=int, default=1,
-                    help="batches to run and discard before measuring")
+                    help="passes to run and discard before measuring, so the "
+                         "measured passes see a warm prompt cache")
     args = ap.parse_args()
 
     if args.reps < 5:
@@ -138,12 +160,22 @@ def main():
         print(f"warning: --reps {args.reps} is below the floor of 5", file=sys.stderr)
 
     prompts = load_prompts(args.workload, args.tasks)
+    if args.pool < args.streams:
+        sys.exit(f"--pool {args.pool} is below --streams {args.streams}: "
+                 f"{args.streams - args.pool} slots would sit idle")
+    if len(prompts) < args.pool:
+        sys.exit(f"workload has {len(prompts)} tasks, --pool needs {args.pool}")
 
-    for i in range(args.warm):
-        batch(args.port, prompts, args.streams, args.maxtok, i)
+    # The task pool is fixed so that eight slots have eight things to do and one
+    # slot does the same eight sequentially. Trimming it to the pool size keeps
+    # every arm's workload identical.
+    prompts = prompts[:args.pool]
 
-    runs = [batch(args.port, prompts, args.streams, args.maxtok, r)
-            for r in range(args.reps)]
+    for _ in range(args.warm):
+        one_pass(args.port, prompts, args.streams, args.maxtok)
+
+    runs = [one_pass(args.port, prompts, args.streams, args.maxtok)
+            for _ in range(args.reps)]
 
     agg = [r["aggregate"] for r in runs]
     per = [r["per_stream"] for r in runs]
@@ -158,6 +190,7 @@ def main():
         "aggregate_spread_pct": round(spread(agg), 1),
         "per_stream_tps": round(statistics.mean(per), 2),
         "per_stream_spread_pct": round(spread(per), 1),
+        "pool": args.pool,
         "tokens_total": sum(r["tokens"] for r in runs),
         "draft_n": dn,
         "draft_accept_pct": round(100.0 * da / dn, 1) if dn else None,
