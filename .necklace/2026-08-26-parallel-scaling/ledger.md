@@ -368,3 +368,29 @@ itself cannot be quietly wrong about what it ran.
 The CUJ-02 test asserting `none` rows carry `draft_n=0` was correct to fail and
 is now wrong in its premise. Replaced: the arms must differ in `spec_type`, and
 each must record which implementations it loaded.
+
+## The instrumentation pays for itself on the first two arms
+
+    np1-mtp    spec_type=draft-mtp  spec_impls=draft-mtp+ngram-mod  draft_n=8316
+    np1-nomtp  spec_type=none       spec_impls=ngram-mod            draft_n=7168
+
+`draft-mtp` loads both implementations; `none` loads ngram-mod alone. The record
+now demonstrates the thing the ledger asserts, rather than asking a reader to
+trust the prose. That is the whole point of the column.
+
+**And an unplanned observation worth carrying into the writeup:** the two arms
+have very different stability.
+
+    np1-mtp    per-stream ±6.3%   aggregate ±8.1%
+    np1-nomtp  per-stream ±14.9%  aggregate ±16.6%
+
+The MTP arm sits comfortably inside the 13% noise floor; the ngram-only arm sits
+above it. Speculation by n-gram matching depends on how much of the output the
+matcher has seen before, and that varies far more between HumanEval problems
+than MTP's learned prediction does. So the comparison arm is not merely slower,
+it is less repeatable — which matters when the question is whether a gap is real.
+
+Not yet established across other slot counts. If it holds, any verdict against
+the ngram-only arm carries a wider band than a naive reading of the noise floor
+would suggest, and the report's verdict function already accounts for that by
+using the mean of both arms' spreads rather than a fixed threshold.
