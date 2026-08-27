@@ -103,9 +103,10 @@ bought with context on this configuration. Whatever the throughput says, the
 recommendation has to weigh a window a coding agent can still work in, and any
 recommended slot count carries the matching client change with it.
 
-**Ask before running, and measure the machine between arms.** The sweep is
-roughly half an hour holding 48 GiB on a daily driver that has already proven it
-acquires other work without warning.
+**Ask before running, and measure the machine between arms.** Thirteen arms at
+~48 GiB resident, on the order of an hour, on a daily driver that has already
+proven it acquires other work without warning. The estimate comes from measured
+load and pass times rather than a guess, and the next document pins it.
 
 ## Resolved
 
