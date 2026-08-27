@@ -1,3 +1,0 @@
-label	group	slots	ctx_total	ctx_per_slot	cache_ram	spec_type	workload	pool	reps	per_stream_tps	per_stream_spread_pct	aggregate_tps	aggregate_spread_pct	draft_n	draft_accept_pct	gtt_gib	provenance
-np1-mtp	main	1	262144	262144	16384	draft-mtp	humaneval	8	5	51.05	8.9	46.37	11.6	8316	72.8	47	measured on this box
-np1-nomtp	main	1	262144	262144	16384	none	humaneval	8	5	36.38	15.1	32.07	16.5	7168	68.2	44	measured on this box
