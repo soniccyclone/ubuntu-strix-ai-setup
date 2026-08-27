@@ -323,3 +323,48 @@ The general shape is familiar by now: a test that cannot fail proves nothing, an
 a test nobody has watched fail is in that category until proven otherwise. The
 new part is that *checking* a test can itself be destructive, and a background
 job's output file is exactly the wrong place to check one.
+
+## "--spec-type none" does not mean no speculation
+
+The sweep's second arm recorded `spec_type=none` and `draft_n=7168`. Both
+cannot be true, and the earlier probe that "verified" the toggle had shown
+draft_n going 148 to 0.
+
+`repl/mtp-off-really.sh` settles it. With `--spec-type none` the server still
+reports:
+
+    common_speculative_init: adding speculative implementation 'ngram-mod'
+    common_speculative_impl_ngram_mod: initialized ngram_mod with n_match=24
+
+and drafting depends entirely on the workload:
+
+    prose, 64 tokens        draft_n=0
+    prose, 512 tokens       draft_n=0
+    humaneval, 512 tokens   draft_n=128   accepted=98
+
+**The earlier probe used prose.** An n-gram speculator finds nothing to match in
+discursive text and a great deal to match in code, so it reported zero, and I
+read that as the flag working. It was the workload, not the flag — the same
+mistake this cycle already caught once, when a mixed prompt set would have put
+the baseline between two regimes. Twice now the workload has been the variable
+while something else got the credit.
+
+**What it means for the experiment.** `--kairic-edge` brings its own speculative
+stack, and `--spec-type` selects what joins it rather than whether speculation
+happens. So the two arms are not MTP against nothing. They are:
+
+    draft-mtp   MTP plus the kairic-edge default stack
+    none        the kairic-edge default stack alone (ngram-mod)
+
+That is still the comparison mathieu asked for — it isolates what MTP adds over
+what the engine would do anyway — but it must be labelled as that and not as
+"MTP off". A row saying `none` with seven thousand drafted tokens is not a
+mislabelled number, it is a claim nobody can check.
+
+The sweep now records the speculative implementations the server actually
+initialised, per arm, read from its own startup log. An arm that describes
+itself cannot be quietly wrong about what it ran.
+
+The CUJ-02 test asserting `none` rows carry `draft_n=0` was correct to fail and
+is now wrong in its premise. Replaced: the arms must differ in `spec_type`, and
+each must record which implementations it loaded.
