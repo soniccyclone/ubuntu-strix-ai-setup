@@ -186,3 +186,15 @@ as approximately nothing. Whatever lodestone grows into will not appear in
 
 The sweep asks Nathan before it runs, and reads GTT between arms rather than
 assuming the headroom it measured at the start is still there.
+
+## Nathan's answers
+
+**Hold the production knob, and bound the confound.** `-c` stays at 262144 while
+per-slot context shrinks with the slot count, plus a spot-check at one slot with
+the window pinned to the eight-slot value. Rejected: holding per-slot context
+fixed throughout, which is the cleaner engine result mathieu is nominally asking
+for but produces no arm corresponding to a configuration anyone would run. The
+spot-check recovers most of that answer for two arms.
+
+**Measure and recommend, do not change the default.** Slots cannot move without
+opencode's `limit.context` moving with them, and that pairing is a decision.

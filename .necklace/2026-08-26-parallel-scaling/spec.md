@@ -107,9 +107,29 @@ recommended slot count carries the matching client change with it.
 roughly half an hour holding 48 GiB on a daily driver that has already proven it
 acquires other work without warning.
 
-## Open questions
+## Resolved
 
-| Question | Why it cannot be settled by reading or running |
-| --- | --- |
-| Should the sweep hold `-c` at the production 262144 and let per-slot context shrink, or hold per-slot context fixed and raise `-c` with the slot count? | Both are runnable and they answer different questions. Holding `-c` measures the knob Nathan would actually turn; holding per-slot context isolates concurrency from window size and is the cleaner engine result mathieu is asking about. Which one is the deliverable is a call about audience. |
-| Is a recommendation in scope, or only the measurement? | The numbers may point at a slot count that is better for throughput and worse for context. Whether this cycle changes the shipped default, or only publishes what it found and leaves the decision, is Nathan's appetite rather than something the data settles. |
+**The sweep turns the production knob.** `-c` stays at 262144 and per-slot
+context shrinks as slots rise, because that is the change an operator would
+actually make and the collapse is a finding rather than something to engineer
+around. Two extra arms at one slot with the window pinned to the eight-slot
+value bound how much the shrinking window confounded the result, so the
+confound is measured rather than argued about.
+
+**The cycle measures and recommends; it does not change what ships.** A slot
+count cannot move without the client's context limit moving with it, and that
+pairing is a decision rather than a consequence of a table.
+
+---
+
+<!--
+Altitude self-check.
+
+  Could two competent engineers read this and implement it differently, and both be right?
+    Yes. Arm ordering, how tasks are distributed across concurrent slots,
+    where the results are published, and how repeats are aggregated are all open.
+
+  Could two competent engineers read this and disagree about whether it was satisfied?
+    No. Every outcome names something observable, and the one-slot arm has a
+    published number it must reproduce.
+-->
