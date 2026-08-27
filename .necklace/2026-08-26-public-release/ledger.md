@@ -264,3 +264,21 @@ contradicts both the code under it and the document it cites.
 Nathan asked for it in scope. It is a public-facing falsehood about the
 security posture of the thing, in a file this cycle already rewrites, and it
 would be read by exactly the people most likely to check.
+
+## Two assertions that would have passed while the thing rotted
+
+Checking the CUJ's own claims before committing them caught two tests that
+would have been written wrong.
+
+The README states the suite count **twice** — `tests/  17 bats suites` at line
+105 and `make test  # 17 suites` at line 119. A test reading "the number in the
+README" would have matched the first and left the second to drift. The
+assertion has to be that *every* stated count agrees.
+
+And the placeholder form is not what I wrote. `grep -c '_Add .*here_'` returns
+2, not 3: `_Add a brief overview of your project architecture_` does not end in
+`here_`. A test matching the narrower form would have gone green with one stub
+still sitting in the file. The assertion matches `_Add ..._`.
+
+Both are the same failure: an assertion narrower than the thing it claims to
+cover, which is the kind that passes forever and proves nothing.
