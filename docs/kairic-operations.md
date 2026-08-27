@@ -141,7 +141,7 @@ All are environment variables on the `code` role in
 | `KAIRIC_MIN_P` | 0.0 | " |
 | `KAIRIC_PRESENCE_PENALTY` | 0.0 | raise only in non-thinking mode |
 | `KAIRIC_REASONING` | on | `off` disables thinking entirely |
-| `KAIRIC_REASONING_FORMAT` | deepseek | `none` leaves raw tags in content |
+| `KAIRIC_REASONING_FORMAT` | deepseek | `none` leaves raw tags in content; never set it |
 | `KAIRIC_REASONING_BUDGET` | -1 | cap thinking tokens; -1 unrestricted |
 | `KAIRIC_SLOTS` | 1 | more slots divide context further; move `limit.context` with it |
 | `CONTEXT` | 262144 | total across slots |
@@ -243,3 +243,31 @@ opencode debug config                     # resolved opencode config after merge
 opencode models                           # which models the client can see
 podman logs kairic-serve | grep -i slot   # which slot served a request
 ```
+
+## Empty thinking blocks above a reply
+
+**Symptom.** opencode renders an empty grey thinking block, then the real answer.
+The stored message content literally begins `<think>\n\n</think>\n\n`.
+
+**Cause.** Qwen3's chat template emits that marker for non-thinking mode. It is
+the *reasoning format*, not the reasoning switch, that decides whether anything
+parses it: with `--reasoning-format none` the marker is never consumed and lands
+in `message.content`.
+
+`--reasoning off` is unrelated and perfectly fine — the compaction worker should
+not think. The two are separate knobs and only the format matters here.
+
+**Where it hid.** The 27B was fixed for this; the 4B compaction worker beside it
+kept `--reasoning-format none`, so the marker only appeared when compaction,
+title or summary ran. That is why it looked random rather than constant.
+
+**Check it.** Ask the compaction model directly:
+
+```
+curl -s -H 'Content-Type: application/json' \
+  -d '{"model":"compact","messages":[{"role":"user","content":"say ok"}],"max_tokens":40}' \
+  http://127.0.0.1:8080/v1/chat/completions | jq -r '.choices[0].message.content'
+```
+
+Any `<think>` in that output means a model is being served with
+`--reasoning-format none`. `tests/p08-reasoning.bats` fails if one is.

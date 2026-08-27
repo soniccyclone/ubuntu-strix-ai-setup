@@ -497,3 +497,48 @@ the moment the recommendation changed. A literal was the wrong shape: what has
 to hold is that the configuration and the published recommendation agree,
 whichever number they settle on, and that no client model pins a slot the server
 does not have. Both were verified to fail when reintroduced.
+
+## The empty thinking blocks were the 4B, not the 27B
+
+Nathan reported opencode rendering empty `<think></think>` blocks above replies.
+The repository already believed this fixed: `00557ba` moved the 27B from
+`--reasoning off --reasoning-format none` to `on`/`deepseek`, and the runner
+carries a comment explaining that `none` "leaves whatever tags appear unparsed
+inside message.content -- which is how you get empty <think></think> rendered as
+literal text".
+
+The evidence was in opencode's own SQLite store: 497 stored message parts
+containing the literal tags, 496 before that commit and one after. The service
+restarted at 09:44, five minutes after the fix, so the survivor was not a stale
+container — the first hypothesis, and wrong.
+
+Joining the part to its message named the culprit:
+
+    modelID=compact  agent=compaction  role=assistant
+
+**The 27B was fixed and the 4B beside it was not.** `llama-swap-kairic.yaml`
+still launched the compaction worker with `--reasoning off --reasoning-format
+none`. The symptom looked random because it only appears when compaction, title
+or summary runs — every one of which is routed to that model.
+
+Reproduced through the contract, then isolated on a standalone 4B:
+
+    reasoning=off  format=none      think-in-content=True   reasoning=0
+    reasoning=off  format=deepseek  think-in-content=False  reasoning=0
+    reasoning=off  format=auto      think-in-content=False  reasoning=0
+
+`--reasoning off` is right for compaction and is not the problem. The two flags
+are independent, and only the format decides whether the template's non-thinking
+marker gets parsed. Fixed to `deepseek`, verified end to end.
+
+**The lesson is about how the fix was recorded.** The original commit fixed one
+model and wrote the explanation into that model's runner, where the next reader
+of the *other* model's config would never see it. A comment is not a constraint.
+`tests/p08-reasoning.bats` now fails if any model in `config/` is served with
+`--reasoning-format none`.
+
+**And a third self-matching test in one session.** The first draft of that test
+flagged `run-kairic-serve.sh`, because its comment quotes the bad flag while
+explaining why not to use it. Config comments are stripped before scanning now.
+Three times is a pattern rather than bad luck: any test that greps for a
+forbidden string will find the prose explaining why it is forbidden.

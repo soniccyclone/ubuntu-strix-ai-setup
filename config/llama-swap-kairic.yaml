@@ -83,6 +83,19 @@ models:
   # quantisation error there is expensive and invisible. Buy quality on the
   # model whose mistakes you never see.
   #
+  # REASONING: off, so the 4B never generates thoughts -- compaction wants speed
+  # and its output is a summary, not an argument. But the FORMAT is `deepseek`,
+  # not `none`, and those are separate knobs. Qwen3's chat template emits a
+  # literal `<think>\n\n</think>\n\n` marker for non-thinking mode; with format
+  # `none` nothing parses it and it lands in message.content, which is how
+  # opencode ends up rendering an empty thinking block above every compaction
+  # summary. Measured on the 4B: format `none` leaks the tags, `deepseek` does
+  # not, and neither generates any reasoning.
+  #
+  # The 27B beside it was fixed for this in 00557ba; this model was not, which
+  # is why the symptom looked random -- it only appears when compaction, title
+  # or summary runs.
+  #
   # Context matches `code` exactly. opencode hands compaction a transcript
   # nearly as large as the main window; a smaller window here would fail at
   # precisely the moment compaction becomes necessary.
@@ -98,7 +111,7 @@ models:
       --alias compact --host 127.0.0.1 --port ${PORT}
       --jinja -dev ROCm0 -ngl 999 -c 262144 -fa on
       -ctk f16 -ctv f16 --no-warmup
-      --reasoning off --reasoning-format none
+      --reasoning off --reasoning-format deepseek
     aliases: ["claude-3-5-haiku-latest", "gpt-4o-mini"]
     checkEndpoint: /health
 
