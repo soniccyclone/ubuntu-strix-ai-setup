@@ -319,3 +319,50 @@ own header explains why 69 + 60 GiB does not fit on this machine.
 
 Both real configs now load and list their roles: `deep fast fast-text` and
 `code compact`.
+
+## Rewriting two coupled stores
+
+Both rewrites are done locally. Neither is pushed.
+
+**Dolt took three attempts, and the first two failures were informative.**
+
+`dolt filter-branch -q "delete from issues where id='...p11'"` refused with
+`local changes detected on branch refs/heads/main`, while `dolt status` and the
+`dolt_status` table both reported the tree clean. `--apply-to-uncommitted`
+cleared that, and then failed differently: `table not found: issues`. The
+traversal replays from the initial commit, where the table did not yet exist.
+
+Passing the commit that introduced the issue as the start point fixed the
+missing table but left exactly one row behind — that commit itself. The
+boundary is exclusive: rewriting begins *after* the named commit, not at it.
+Passing its parent finished the job. 37 versions to 0, with 36 issues and all
+203 dolt commits intact.
+
+**On the git side** an `--index-filter` dropping the matching line from
+`.beads/issues.jsonl` rewrote 131 commits in three seconds. The test still
+failed afterwards, correctly: `refs/original/refs/remotes/origin/master`, the
+backup filter-branch writes, still carried the old blob. `git rev-list --all`
+reaches it, and so would anyone who cloned. Clearing those refs is part of the
+rewrite, not tidying after it.
+
+**The count had grown while we worked.** Scoping said 10 versions of `p11`. By
+the time the scrub ran it was 37, because `dolt_history_issues` gains a row per
+issue per commit and this cycle added 28 commits of its own. The append-only
+argument was stronger at the end than when it was made.
+
+## A pre-existing test failure, not from this cycle
+
+`tests/07-privileged.bats` fails its first assertion, and has since `086a320`,
+which is well before this cycle opened. Nothing here touched
+`docs/privileged-steps.md`.
+
+The document has six numbered steps. The test counts reasons with
+`^\*\*(Why|Superseded)\.\*\*` and undos with `^\*\*Rollback\.\*\*`, and section
+6 words its two as `**Why it was added.**` and
+`**Rollback — run this if the container path works:**`. Both are present; the
+regexes are narrower than the prose.
+
+So the document is not deficient and the test is too strict. Loosening a test to
+make it pass is usually the wrong instinct, which is why this is being reported
+rather than quietly fixed: it is outside the six items, and a repository about
+to go public with a red suite is Nathan's call, not a detail to absorb.

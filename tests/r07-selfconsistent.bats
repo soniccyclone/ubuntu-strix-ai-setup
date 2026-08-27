@@ -30,8 +30,10 @@ CONFIGS=(config/llama-swap.yaml config/llama-swap-kairic.yaml)
   # Records are exempt: .necklace/ prose and the beads export both quote the
   # defect in order to describe it. Everything the project says about itself in
   # config, docs, units and scripts is in scope.
+  # This file is excluded from its own scan: it necessarily contains the very
+  # strings it forbids, both in the pattern and in the comment explaining why.
   run bash -c "git ls-files -z \
-    | grep -zvE '^(\.necklace/|\.beads/issues\.jsonl$)' \
+    | grep -zvE '^(\.necklace/|\.beads/issues\.jsonl$|tests/r07-selfconsistent\.bats$)' \
     | xargs -0 grep -inE 'closed with a firewall|firewall rule instead|requires? a firewall|need(s|ed)? a firewall' 2>/dev/null || true"
   [ -z "$output" ]
 }
