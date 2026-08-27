@@ -366,3 +366,41 @@ So the document is not deficient and the test is too strict. Loosening a test to
 make it pass is usually the wrong instinct, which is why this is being reported
 rather than quietly fixed: it is outside the six items, and a repository about
 to go public with a red suite is Nathan's call, not a detail to absorb.
+
+## The scrub test reported clean while the fragments sat in HEAD
+
+The first push went out with the git history verified only by the test that
+was supposed to verify it. Cloning the result and grepping it by hand found a
+hit in HEAD.
+
+Two faults, and the first one is the one worth remembering.
+
+**The test could not fail.** Its whole-history scan was a `run bash -c "..."`
+with `$m` and `$c` interpolated through two layers of quoting. The command that
+actually ran did not match anything, so the assertion passed on every input.
+The same scan written by hand outside bats found the hit immediately. A test
+whose escaping is wrong does not report an error — it reports success.
+
+**The test was the last thing publishing the phrase.** It stored the search
+needles as plain strings, so `tests/r06-scrub.bats` became the only file in the
+repository still carrying them, one of which names a third party's source file.
+The scan excluded nothing, so had it worked it would have failed on itself.
+
+Fixed by base64-encoding the needles and decoding them at run time. That is not
+obfuscation for its own sake: it means the file needs no exemption from its own
+scan, which is strictly better than the exclusion `r07` had to take. The
+whole-history loop was rewritten in plain bats without nested `bash -c`.
+
+Then a second `filter-branch` replaced the file with its encoded form in every
+commit that carried it, and a second force-push.
+
+**Verified against the remote rather than the working tree**, which is what
+should have happened the first time:
+
+    fresh clone, 134 commits, every ref     -> no commit carries either needle
+    dolt fetch + checkout origin/main       -> 0 hits, 36 issues, 0 p11 versions
+
+The general lesson is not "be careful with quoting". It is that a test asserting
+an absence is exactly the kind that passes when broken, because absence is what
+a broken test reports too. Anything asserting a negative deserves a deliberate
+red — feed it something it must find — before it is believed.
