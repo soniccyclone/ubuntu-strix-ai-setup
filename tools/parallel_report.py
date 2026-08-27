@@ -69,8 +69,11 @@ def mtp_table(rows):
             continue
         k = (r["group"], int(r["slots"]), r["workload"])
         pairs.setdefault(k, {})[r["spec_type"]] = r
-    out = ["| workload | slots | MTP on | MTP off | difference | verdict | accept |",
-           "| --- | ---: | ---: | ---: | ---: | --- | ---: |"]
+    # The column headers say "with MTP" / "without", not "MTP on/off": on this
+    # engine --spec-type none still loads ngram-mod, so the comparison arm is
+    # the default speculative stack rather than no speculation at all.
+    out = ["| workload | slots | with MTP | without | difference | verdict | accept | stack (with / without) |",
+           "| --- | ---: | ---: | ---: | ---: | --- | ---: | --- |"]
     for k in sorted(pairs, key=lambda k: (k[2], k[1])):
         v = pairs[k]
         if set(v) != {"draft-mtp", "none"}:
@@ -80,7 +83,8 @@ def mtp_table(rows):
         out.append(
             f"| {k[2]} | {k[1]} | {on['aggregate_tps']} ±{on['aggregate_spread_pct']}% | "
             f"{off['aggregate_tps']} ±{off['aggregate_spread_pct']}% | "
-            f"{gap:+.1f}% | {verd} | {on['draft_accept_pct'] or '—'}% |")
+            f"{gap:+.1f}% | {verd} | {on['draft_accept_pct'] or '—'}% | "
+            f"`{on.get('spec_impls','?')}` / `{off.get('spec_impls','?')}` |")
     return "\n".join(out)
 
 
