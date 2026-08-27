@@ -233,3 +233,30 @@ works and that the question is live.
 
 Writing it down because a plausible number that agrees with a prediction is the
 easiest kind to start quoting by accident.
+
+## Three assertions corrected before they were written down
+
+Checking the CUJ's own claims against the measurements caught three tests that
+would have been wrong.
+
+**A one-point tolerance on draft acceptance would have been flaky.** The 76.2%
+match against the published figure is striking, and the temptation was to pin
+it tightly. But the same run's second hot pass gave 74.2% — a 2.0pp spread with
+nothing changed. A one-point assertion would fail on a perfectly good run. The
+regime, 70-80%, is what is actually stable.
+
+**A test reading "the client's declared context" would have passed for the wrong
+reason.** `opencode-kairic.jsonc` declares two: `code` at 131072 and `compact`
+at 262144. Only the first pairs with the slot count. A test asking whether the
+per-slot window appears among the declared contexts is satisfied by `compact`
+regardless of what `code` says, which is precisely the drift it exists to catch.
+
+**The cited-versus-measured precedent is looser than described.**
+`bench/media-timings.tsv` has no dedicated column; `m08-timings.bats` greps a
+free-text notes field for "this box" against "published" or "reference". That
+works and is enforced, but calling it a precedent for a marked field overstated
+it. Recorded as-is, with the note that a real column would be firmer.
+
+All three share a shape with the failures the release cycle produced: an
+assertion narrower or looser than the thing it claims to cover, which passes
+without proving anything.
