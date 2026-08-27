@@ -119,7 +119,7 @@ main(){
   fi
 
   if [ ! -s "$OUT" ]; then
-    printf 'label\tgroup\tslots\tctx_total\tctx_per_slot\tcache_ram\tspec_type\tworkload\tpool\treps\tper_stream_tps\tper_stream_spread_pct\taggregate_tps\taggregate_spread_pct\tdraft_n\tdraft_accept_pct\tgtt_gib\tprovenance\n' > "$OUT"
+    printf 'label\tgroup\tslots\tctx_total\tctx_per_slot\tcache_ram\tspec_type\tspec_impls\tworkload\tpool\treps\tper_stream_tps\tper_stream_spread_pct\taggregate_tps\taggregate_spread_pct\tdraft_n\tdraft_accept_pct\tgtt_gib\tprovenance\n' > "$OUT"
   fi
 
   local l g s c r sp w
@@ -136,9 +136,17 @@ main(){
       cleanup; continue
     fi
 
-    local slot_ctx used out
+    local slot_ctx used out impls
     slot_ctx=$(podman logs "$CTR" 2>&1 | grep -oE 'new slot, n_ctx = [0-9]+' | head -1 | grep -oE '[0-9]+$')
     used=$(gtt_used)
+    # --spec-type selects what JOINS the kairic-edge default stack, not whether
+    # speculation happens: with "none" the server still loads ngram-mod, which
+    # drafts freely on code and not at all on prose. Record what it actually
+    # initialised so an arm cannot be quietly wrong about what it ran.
+    impls=$(podman logs "$CTR" 2>&1 \
+            | grep -oE "adding speculative implementation '[a-z0-9-]+'" \
+            | grep -oE "'[a-z0-9-]+'" | tr -d "'" | sort -u | paste -sd+ -)
+    impls="${impls:-none-loaded}"
 
     local wl_args=(--workload "$w")
     [ "$w" = "humaneval" ] && wl_args+=(--tasks "$TASKS")
@@ -152,7 +160,7 @@ main(){
     echo "$out" | python3 -c "
 import json,sys
 d=json.load(sys.stdin)
-row=['$l','$g','$s','$c','${slot_ctx:-}','$r','$sp','$w',str(d['pool']),str(d['reps']),
+row=['$l','$g','$s','$c','${slot_ctx:-}','$r','$sp','$impls','$w',str(d['pool']),str(d['reps']),
      str(d['per_stream_tps']),str(d['per_stream_spread_pct']),
      str(d['aggregate_tps']),str(d['aggregate_spread_pct']),
      str(d['draft_n']),str(d['draft_accept_pct'] if d['draft_accept_pct'] is not None else ''),

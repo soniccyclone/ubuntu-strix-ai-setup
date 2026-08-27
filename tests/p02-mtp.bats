@@ -33,19 +33,28 @@ PY
   [ "$output" = "0" ]
 }
 
-@test "speculation-on rows carry a draft acceptance rate and off rows do not" {
+@test "each arm records the speculative stack it actually loaded" {
   [ -f "$REC" ]
   [ "$(rows)" -ge "$(expected_arms)" ]
-  local st dn da
-  st=$(col spec_type); dn=$(col draft_n); da=$(col draft_accept_pct)
-  # draft-mtp must have drafted something and reported acceptance.
-  run awk -F'\t' -v s="$st" -v n="$dn" -v a="$da" \
-      'NR>1 && $s=="draft-mtp" && ($n+0==0 || $a==""){c++} END{print c+0}' "$REC"
+  # "--spec-type none" does NOT mean no speculation: the kairic-edge path loads
+  # ngram-mod regardless, which drafts on code and not on prose. So the arms are
+  # MTP-plus-default against default-alone, and each must say which
+  # implementations it loaded rather than being trusted from its label.
+  local st si dn da
+  st=$(col spec_type); si=$(col spec_impls); dn=$(col draft_n); da=$(col draft_accept_pct)
+  [ -n "$si" ]
+  run awk -F'\t' -v i="$si" 'NR>1 && ($i=="" || $i=="none-loaded"){c++} END{print c+0}' "$REC"
   [ "$output" = "0" ]
-  # none must have drafted nothing. A non-zero draft_n there means the toggle
-  # did not take and the two arms are not what they claim.
-  run awk -F'\t' -v s="$st" -v n="$dn" \
-      'NR>1 && $s=="none" && $n+0!=0{c++} END{print c+0}' "$REC"
+  # The MTP arms must actually have loaded MTP, and the comparison arms must not.
+  run awk -F'\t' -v s="$st" -v i="$si" \
+      'NR>1 && $s=="draft-mtp" && $i !~ /mtp/{c++} END{print c+0}' "$REC"
+  [ "$output" = "0" ]
+  run awk -F'\t' -v s="$st" -v i="$si" \
+      'NR>1 && $s=="none" && $i ~ /mtp/{c++} END{print c+0}' "$REC"
+  [ "$output" = "0" ]
+  # And a drafting arm must report acceptance, or the number says nothing.
+  run awk -F'\t' -v n="$dn" -v a="$da" \
+      'NR>1 && $n+0>0 && $a==""{c++} END{print c+0}' "$REC"
   [ "$output" = "0" ]
 }
 
