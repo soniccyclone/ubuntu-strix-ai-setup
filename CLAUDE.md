@@ -58,20 +58,45 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
 <!-- END BEADS INTEGRATION -->
 
 
+<!-- BEGIN PROJECT NOTES -->
 ## Build & Test
 
-_Add your build and test commands here_
+`make help` lists every target with its arguments. It is the interface; there is
+no second set of commands hiding in a script.
 
-```bash
-# Example:
-# npm install
-# npm test
+```
+make setup    # check bats, jq, podman, dolt
+make test     # every bats suite
+make env      # write .env if absent, regenerate the serving overlay
+make status   # what is running and what it costs, including GPU memory
+make stop-all # stop everything this repo can start, then prove it
 ```
 
 ## Architecture Overview
 
-_Add a brief overview of your project architecture_
+[README.md](README.md) covers the three subsystems and how they relate.
+[docs/kairic-operations.md](docs/kairic-operations.md) is the operations manual:
+tuning, memory behaviour, and troubleshooting by symptom.
+
+Two things that are not obvious from the code and cause real mistakes:
+
+- **Machine-local paths live in `.env`**, which is gitignored. The tracked
+  configs in `config/` reference macros they do not define, so they cannot load
+  alone — that is deliberate, and the error names the missing value. Run
+  `make env` after editing `.env`.
+- **Watch GTT, not RSS.** On this unified-memory APU the weights live in GTT.
+  `ps`, `top` and `podman stats` will report a few GB while 91 GiB is in use.
+  Read `/sys/class/drm/card*/device/mem_info_gtt_used`.
 
 ## Conventions & Patterns
 
-_Add your project-specific conventions here_
+- Tests are bats, one suite per CUJ, named for the property they assert rather
+  than the function they call. Write the test first and watch it fail; a test
+  that passes when written is testing nothing.
+- Every measurement in this repository was taken on the machine described in
+  [README.md](README.md), and the method is published beside the number.
+- The development record is in `.necklace/`, including what was tried and
+  abandoned. Read the relevant ledger before changing a design decision.
+- Nothing here escalates privilege. Steps needing root are printed for a human
+  to run: [docs/privileged-steps.md](docs/privileged-steps.md).
+<!-- END PROJECT NOTES -->

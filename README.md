@@ -105,7 +105,7 @@ config/          serving contracts and client wiring
 harness/         container definitions for every engine
 systemd/         user units; no system-level services
 tools/           the small clients and probes the targets call
-tests/           17 bats suites, run with `make test`
+tests/           23 bats suites, run with `make test`
 bench/           measurements, with method
 docs/            setup, operations, privileged steps
 .necklace/       the full development record, including what failed
@@ -119,7 +119,7 @@ the wrong turns, which are usually more useful than the conclusions.
 
 ```
 make setup    # bats, jq, podman check
-make test     # 17 suites
+make test     # 23 suites
 ```
 
 Agents under evaluation run in containers with no host filesystem mounted, so a
