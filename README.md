@@ -108,18 +108,28 @@ tools/           the small clients and probes the targets call
 tests/           24 bats suites, run with `make test`
 bench/           measurements, with method
 docs/            setup, operations, privileged steps
-.necklace/       the full development record, including what failed
+.necklace/       design notes and measurements, one directory per work cycle
 ```
-
-`.necklace/` is worth reading before changing anything. Each cycle keeps a
-ledger of what was measured, what was tried and abandoned, and why — including
-the wrong turns, which are usually more useful than the conclusions.
 
 ## Testing
 
 ```
-make setup    # bats, jq, podman check
+make setup    # bats, jq, podman, dolt check
 make test     # 24 suites
+```
+
+**14 of the 24 need the GPU, the model weights and the services running**, and
+they fail rather than skip when those are absent — so a first `make test` on a
+machine without the hardware is mostly red, and that is expected rather than a
+broken checkout. `make test` starts the media services itself; the contract has
+to be up separately (`make kairic-up` or `make llm-up`).
+
+The other ten check things that hold anywhere — licensing, documentation
+provenance, config portability, the publication surface — and pass on a fresh
+clone with nothing running:
+
+```
+bats tests/06-bench.bats tests/m08-timings.bats tests/r0*.bats
 ```
 
 Agents under evaluation run in containers with no host filesystem mounted, so a
