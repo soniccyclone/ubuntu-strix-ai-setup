@@ -367,6 +367,37 @@ make it pass is usually the wrong instinct, which is why this is being reported
 rather than quietly fixed: it is outside the six items, and a repository about
 to go public with a red suite is Nathan's call, not a detail to absorb.
 
+### Nathan's answer: delete it
+
+Two fixes were offered — normalise the document, or widen the pattern — and both
+missed the point, which he made in one line: the failure this test was written
+for cannot be caught by a test at all.
+
+It came from a real near-miss. On 2026-08-20 the GTT commands existed only in
+chat when he was about to reboot, and the does-not-boot recovery would have been
+unreachable at exactly the moment it was needed. The rule that followed was that
+state-changing commands get written down before they are handed over.
+
+But the test checks that steps **already written down** carry a why and a
+rollback. A step that was never written down is invisible to it. The failure is
+in the process that produces the document, and the only thing that could observe
+that is a hook into the conversation itself, which he does not want to write and
+should not have to.
+
+So it was enforcing a shape while the thing it was named for went unwatched, and
+it had been red for four days without anyone noticing — the two facts are the
+same fact.
+
+Deleting it also removed two tests that would have failed on any machine but
+this one: `the boot-argument change is reversible from its backup` needs Nathan's
+`/etc/default/grub.bak`, and `the user-level install is separable` needs his
+installed weights. Both green here, both red on a stranger's fresh clone. That is
+the exact class of defect this cycle existed to remove, sitting inside the test
+suite the whole time.
+
+`docs/privileged-steps.md` stays. It is a good document; it simply is not
+something a test can vouch for.
+
 ## The scrub test reported clean while the fragments sat in HEAD
 
 The first push went out with the git history verified only by the test that
