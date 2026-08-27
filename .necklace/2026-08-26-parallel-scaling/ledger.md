@@ -498,7 +498,7 @@ to hold is that the configuration and the published recommendation agree,
 whichever number they settle on, and that no client model pins a slot the server
 does not have. Both were verified to fail when reintroduced.
 
-## The empty thinking blocks were the 4B, not the 27B
+## The empty thinking blocks were the 27B (corrected below)
 
 Nathan reported opencode rendering empty `<think></think>` blocks above replies.
 The repository already believed this fixed: `00557ba` moved the 27B from
@@ -565,3 +565,47 @@ Recorded rather than solved, because the effect matters more than the cause on a
 repository that is now public: work reaches it without anyone deciding to send
 it. The repository's stated policy is conservative — commit freely, push only
 when asked — and something is not honouring that.
+
+### Correction: the attribution above was wrong
+
+Nathan said the empty blocks were a 27B behaviour and not related to compaction,
+and that he had watched compaction run cleanly. He is right, and the section
+above reached its conclusion by looking at one data point.
+
+The mistake was narrow and avoidable. Having found 496 occurrences before the
+fix commit and 1 after, only the single post-fix one was attributed to a model.
+It happened to be `compact`, and that became "the" answer. Attributing all 497
+takes one more query:
+
+    modelID   code     494
+    modelID   compact    3
+
+    agent     build    487
+    agent     plan       8
+    agent     compaction 2
+
+The 27B accounts for 99.4% of them. The compaction worker was a real but minor
+second instance of the same defect, and fixing it was worth doing — it is not
+what Nathan was seeing.
+
+**Where that leaves the 27B.** Splitting on the 09:44:39 restart that first
+picked up `00557ba`:
+
+    before restart   code 494, compact 2
+    after restart    compact 1, code 0
+
+So the stored record says the 27B stopped after the fix landed, and twelve
+attempts to reproduce it since have all come back clean: plain, with a system
+prompt, with tool definitions, tool-calling, multi-turn, streaming, streaming
+with tools, replaying a prior assistant turn carrying `reasoning_content`,
+replaying one whose content holds literal tags, and forcing
+`enable_thinking` both ways.
+
+That is not the same as proving it fixed. It means the trigger is not any of
+those, and the honest state is: the 27B leak is real, it is the one Nathan saw,
+it is not currently reproducible here, and the last opencode activity in the
+store is 2026-08-26 17:48 — so there is no post-restart 27B session to check
+against.
+
+Left open rather than closed. What would settle it is a session where it happens
+again, since the store keeps the offending part and the model that produced it.
