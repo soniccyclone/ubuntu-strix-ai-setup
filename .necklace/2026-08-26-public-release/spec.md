@@ -5,9 +5,9 @@ No ticket. Prompted by outside interest in the Kairic Edge throughput numbers.
 ## The problem
 
 The repository is private and was written for one machine. Nothing in it is
-secret — a sweep of the working tree and all 114 commits found no keys, no
+secret — a sweep of the working tree and every commit found no keys, no
 credentials, and no personal data beyond a commit email that is already public
-on every one of those commits. What blocks publication is that the repository
+on all of them. What blocks publication is that the repository
 does not work for anyone who is not Nathan, and does not say what may be done
 with it.
 
@@ -99,8 +99,8 @@ That is currently explained in a container definition; it belongs where the
 numbers are.
 
 **Decide the publication surface before flipping, not after.** Enumerate what
-each published ref carries, and choose what the issue database does — which is
-the open question below.
+each published ref carries, and choose what the issue database does rather
+than inheriting it.
 
 **Keep third-party criticism only where something shipped depends on it.** A
 documented workaround has to say what it works around. An analysis of a defect
