@@ -105,7 +105,7 @@ config/          serving contracts and client wiring
 harness/         container definitions for every engine
 systemd/         user units; no system-level services
 tools/           the small clients and probes the targets call
-tests/           24 bats suites, run with `make test`
+tests/           31 bats suites, run with `make test`
 bench/           measurements, with method
 docs/            setup, operations, privileged steps
 .necklace/       design notes and measurements, one directory per work cycle
@@ -115,16 +115,16 @@ docs/            setup, operations, privileged steps
 
 ```
 make setup    # bats, jq, podman, dolt check
-make test     # 24 suites
+make test     # 31 suites
 ```
 
-**14 of the 24 need the GPU, the model weights and the services running**, and
+**14 of the 31 need the GPU, the model weights and the services running**, and
 they fail rather than skip when those are absent — so a first `make test` on a
 machine without the hardware is mostly red, and that is expected rather than a
 broken checkout. `make test` starts the media services itself; the contract has
 to be up separately (`make kairic-up` or `make llm-up`).
 
-The other ten check things that hold anywhere — licensing, documentation
+The other seventeen check things that hold anywhere — licensing, documentation
 provenance, config portability, the publication surface — and pass on a fresh
 clone with nothing running:
 
