@@ -35,7 +35,7 @@ nobody runs.
 
 **Done when:** the three tests above pass. All must be red when created.
 
-**Beads:**
+**Beads:** `ubuntu-strix-ai-setup-88a`
 
 ---
 
@@ -62,7 +62,7 @@ nobody runs.
 
 **Depends on:** CUJ-01
 
-**Beads:**
+**Beads:** `ubuntu-strix-ai-setup-8iy`
 
 ---
 
@@ -86,7 +86,7 @@ nobody runs.
 
 **Done when:** the three tests above pass. All must be red when created.
 
-**Beads:**
+**Beads:** `ubuntu-strix-ai-setup-coz`
 
 ---
 
@@ -110,7 +110,7 @@ nobody runs.
 
 **Done when:** the three tests above pass. All must be red when created.
 
-**Beads:**
+**Beads:** `ubuntu-strix-ai-setup-wos`
 
 ---
 
@@ -136,7 +136,7 @@ nobody runs.
 
 **Depends on:** CUJ-04
 
-**Beads:**
+**Beads:** `ubuntu-strix-ai-setup-8ld`
 
 ---
 
@@ -161,7 +161,7 @@ nobody runs.
 
 **Done when:** the three tests above pass. All must be red when created.
 
-**Beads:**
+**Beads:** `ubuntu-strix-ai-setup-ejt`
 
 ---
 
@@ -185,7 +185,7 @@ nobody runs.
 
 **Done when:** the three tests above pass. All must be red when created.
 
-**Beads:**
+**Beads:** `ubuntu-strix-ai-setup-h9u`
 
 ---
 
