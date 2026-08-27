@@ -37,7 +37,7 @@ assertion.
 
 **Done when:** the four tests above pass. All must be red when created.
 
-**Beads:**
+**Beads:** `ubuntu-strix-ai-setup-tkm`
 
 ---
 
@@ -63,7 +63,7 @@ assertion.
 
 **Depends on:** CUJ-01
 
-**Beads:**
+**Beads:** `ubuntu-strix-ai-setup-k83`
 
 ---
 
@@ -87,7 +87,7 @@ assertion.
 
 **Done when:** the three tests above pass. All must be red when created.
 
-**Beads:**
+**Beads:** `ubuntu-strix-ai-setup-xb9`
 
 ---
 
@@ -111,7 +111,7 @@ assertion.
 
 **Done when:** the three tests above pass. All must be red when created.
 
-**Beads:**
+**Beads:** `ubuntu-strix-ai-setup-j8g`
 
 ---
 
@@ -136,7 +136,7 @@ assertion.
 
 **Done when:** the three tests above pass. All must be red when created.
 
-**Beads:**
+**Beads:** `ubuntu-strix-ai-setup-unb`
 
 ---
 
@@ -164,7 +164,7 @@ assertion.
 
 **Depends on:** CUJ-05
 
-**Beads:**
+**Beads:** `ubuntu-strix-ai-setup-3sk`
 
 ---
 
@@ -189,7 +189,7 @@ assertion.
 
 **Done when:** the three tests above pass. All must be red when created.
 
-**Beads:**
+**Beads:** `ubuntu-strix-ai-setup-1l8`
 
 ---
 
@@ -215,7 +215,7 @@ assertion.
 
 **Done when:** the four tests above pass. All must be red when created.
 
-**Beads:**
+**Beads:** `ubuntu-strix-ai-setup-a9j`
 
 ---
 
