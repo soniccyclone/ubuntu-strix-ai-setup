@@ -4,9 +4,17 @@
 # what serves it is decided here. Every number in the comments was measured on
 # this machine — see .necklace/2026-08-19-local-claude-suite/repl/results.md.
 #
-# Binds 0.0.0.0 because rootless podman containers cannot reach a
-# loopback-bound host service (measured: 127.0.0.1 -> 000, 0.0.0.0 -> 200).
-# The LAN is closed with a firewall rule instead; see docs/privileged-steps.md.
+# Binds 127.0.0.1 and nothing else. A socket bound to loopback cannot receive a
+# packet addressed to a routable interface, so the LAN is closed by the kernel
+# rather than by a rule someone can disable later. No firewall is involved.
+#
+# Containers still reach it, because that path does not use the network stack:
+# a host socat bridges 127.0.0.1:8080 to a unix socket that contract-proxy has
+# bind-mounted. See systemd/contract-socket.service and docs/privileged-steps.md
+# section 3, which records the earlier firewall plan and why it was dropped.
+#
+# tests/09-isolation.bats asserts the binding directly with ss(8) rather than
+# inferring it from a refused connection.
 
 macros:
   # ${opt} and ${m} come from the machine overlay that scripts/env-overlay.sh
