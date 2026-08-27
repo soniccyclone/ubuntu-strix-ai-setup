@@ -5,18 +5,22 @@
 # n_ctx 4096. So slots are bought with context, and the client's declared window
 # has to move whenever the slot count does.
 
-REC=bench/parallel-scaling.tsv
+REC="${REC:-bench/parallel-scaling.tsv}"
 YAML=config/llama-swap-kairic.yaml
 RUNNER=config/run-kairic-serve.sh
 CLIENT=config/opencode-kairic.jsonc
-WRITEUP=docs/parallel-scaling.md
+WRITEUP="${WRITEUP:-docs/parallel-scaling.md}"
+
+# How many arms the sweep actually plans. Hardcoding this drifted once
+# already: the guard said 13 after an arm was dropped to 12.
+expected_arms() { grep -cE '^\s+"np[0-9]' bench/parallel-sweep.sh; }
 
 rows() { tail -n +2 "$REC" | grep -c . ; }
 col()  { head -1 "$REC" | tr '\t' '\n' | grep -nx "$1" | cut -d: -f1; }
 
 @test "every slot count in the record names its per-slot context window" {
   [ -f "$REC" ]
-  [ "$(rows)" -ge 12 ]
+  [ "$(rows)" -ge "$(expected_arms)" ]
   local t p s
   t=$(col ctx_total); p=$(col ctx_per_slot); s=$(col slots)
   run awk -F'\t' -v t="$t" -v p="$p" -v s="$s" \

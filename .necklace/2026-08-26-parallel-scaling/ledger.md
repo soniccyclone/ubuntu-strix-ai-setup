@@ -295,3 +295,31 @@ red when the name is removed again.
 The CUJ-06 tests were green throughout. They asserted the trap existed, which
 was true and insufficient. What was missing was an assertion about what happens
 when the trap cannot run.
+
+## Validating the analysis tests, and nearly destroying the run doing it
+
+The tests that read the results record cannot be trusted until something has
+exercised them, and the record does not exist until the sweep finishes. So a
+synthetic twelve-row record was built to drive them.
+
+**Which found two real test defects.** The row-count guards said 13 — written
+when the plan had thirteen arms, and stale the moment one was dropped to twelve.
+Every record test failed against a perfectly well-formed record. Now derived by
+counting arms in the sweep script itself, so it cannot drift again. And the
+inconclusive test read `docs/parallel-scaling.md` literally while everything
+else took an override, so it was testing a file that did not exist.
+
+**And it nearly cost the run.** The fixture was written straight over
+`bench/parallel-scaling.tsv` — the file the running sweep appends to, one arm at
+a time. Twelve synthetic rows replaced the single real one. Recovered because
+the synthetic rows carried a spread of exactly 9.0 and the real one did not, so
+they could be told apart; the real row was restored and nothing was lost.
+
+That was luck, not method. The tests now take `REC` and `WRITEUP` overrides so a
+fixture never goes near live output, which is what should have been true before
+the first fixture was written.
+
+The general shape is familiar by now: a test that cannot fail proves nothing, and
+a test nobody has watched fail is in that category until proven otherwise. The
+new part is that *checking* a test can itself be destructive, and a background
+job's output file is exactly the wrong place to check one.

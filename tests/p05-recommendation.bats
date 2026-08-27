@@ -5,7 +5,7 @@
 # A slot count cannot move without opencode's context limit moving with it, and
 # that pairing is a decision rather than a consequence of a table.
 
-WRITEUP=docs/parallel-scaling.md
+WRITEUP="${WRITEUP:-docs/parallel-scaling.md}"
 YAML=config/llama-swap-kairic.yaml
 RUNNER=config/run-kairic-serve.sh
 CLIENT=config/opencode-kairic.jsonc

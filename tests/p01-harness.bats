@@ -5,8 +5,12 @@
 # while aggregate rose 27.67 -> 93.45. A single "throughput" figure that does
 # not say which one it is cannot be read.
 
-REC=bench/parallel-scaling.tsv
+REC="${REC:-bench/parallel-scaling.tsv}"
 HARNESS=tools/concbench.py
+
+# How many arms the sweep actually plans. Hardcoding this drifted once
+# already: the guard said 13 after an arm was dropped to 12.
+expected_arms() { grep -cE '^\s+"np[0-9]' bench/parallel-sweep.sh; }
 
 col() { head -1 "$REC" | tr '\t' '\n' | grep -nx "$1" | cut -d: -f1; }
 
@@ -15,7 +19,7 @@ col() { head -1 "$REC" | tr '\t' '\n' | grep -nx "$1" | cut -d: -f1; }
   # A record with no rows satisfies "no row is missing a column" for free.
   # Guard the vacuous pass: the sweep plan has thirteen arms.
   run bash -c "tail -n +2 '$REC' | grep -c . "
-  [ "$output" -ge 13 ]
+  [ "$output" -ge "$(expected_arms)" ]
   local ps agg
   ps=$(col per_stream_tps); agg=$(col aggregate_tps)
   [ -n "$ps" ] && [ -n "$agg" ]
@@ -30,7 +34,7 @@ col() { head -1 "$REC" | tr '\t' '\n' | grep -nx "$1" | cut -d: -f1; }
   # A record with no rows satisfies "no row is missing a column" for free.
   # Guard the vacuous pass: the sweep plan has thirteen arms.
   run bash -c "tail -n +2 '$REC' | grep -c . "
-  [ "$output" -ge 13 ]
+  [ "$output" -ge "$(expected_arms)" ]
   local reps psp asp
   reps=$(col reps); psp=$(col per_stream_spread_pct); asp=$(col aggregate_spread_pct)
   [ -n "$reps" ] && [ -n "$psp" ] && [ -n "$asp" ]

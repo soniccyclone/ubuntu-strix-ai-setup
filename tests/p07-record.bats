@@ -4,14 +4,18 @@
 # Draft acceptance ranges 46-76% on workload alone, so a row that does not name
 # its workload is unreadable rather than merely incomplete.
 
-REC=bench/parallel-scaling.tsv
+REC="${REC:-bench/parallel-scaling.tsv}"
+
+# How many arms the sweep actually plans. Hardcoding this drifted once
+# already: the guard said 13 after an arm was dropped to 12.
+expected_arms() { grep -cE '^\s+"np[0-9]' bench/parallel-sweep.sh; }
 
 rows() { tail -n +2 "$REC" | grep -c . ; }
 col()  { head -1 "$REC" | tr '\t' '\n' | grep -nx "$1" | cut -d: -f1; }
 
 @test "every row names slot count, spec type, context, cache-ram and workload" {
   [ -f "$REC" ]
-  [ "$(rows)" -ge 13 ]
+  [ "$(rows)" -ge "$(expected_arms)" ]
   for c in slots ctx_total ctx_per_slot cache_ram spec_type workload; do
     local i; i=$(col "$c")
     [ -n "$i" ]
@@ -22,7 +26,7 @@ col()  { head -1 "$REC" | tr '\t' '\n' | grep -nx "$1" | cut -d: -f1; }
 
 @test "the record distinguishes this machine's figures from quoted ones" {
   [ -f "$REC" ]
-  [ "$(rows)" -ge 13 ]
+  [ "$(rows)" -ge "$(expected_arms)" ]
   # A dedicated column, not a free-text note. media-timings.tsv carries this in
   # prose and m08-timings.bats greps it; a column cannot drift into ambiguity.
   local i; i=$(col provenance)
@@ -42,7 +46,7 @@ col()  { head -1 "$REC" | tr '\t' '\n' | grep -nx "$1" | cut -d: -f1; }
 
 @test "the record's per-slot context is consistent with its own total and slots" {
   [ -f "$REC" ]
-  [ "$(rows)" -ge 13 ]
+  [ "$(rows)" -ge "$(expected_arms)" ]
   # Arithmetic the reader would do to check us. If it does not hold, one of the
   # three columns is lying about what the arm actually ran.
   local ct cps sl

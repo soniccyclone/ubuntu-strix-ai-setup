@@ -7,14 +7,18 @@
 # used --cache-ram 8192 where the shipped config now uses 16384 -- which makes
 # the figure stale rather than wrong. That is a hypothesis until the A/B runs.
 
-REC=bench/parallel-scaling.tsv
-WRITEUP=docs/parallel-scaling.md
+REC="${REC:-bench/parallel-scaling.tsv}"
+WRITEUP="${WRITEUP:-docs/parallel-scaling.md}"
+# How many arms the sweep actually plans. Hardcoding this drifted once
+# already: the guard said 13 after an arm was dropped to 12.
+expected_arms() { grep -cE '^\s+"np[0-9]' bench/parallel-sweep.sh; }
+
 rows() { tail -n +2 "$REC" | grep -c . ; }
 col()  { head -1 "$REC" | tr '\t' '\n' | grep -nx "$1" | cut -d: -f1; }
 
 @test "the single-slot arm records the conditions the published figure was taken under" {
   [ -f "$REC" ]
-  [ "$(rows)" -ge 12 ]
+  [ "$(rows)" -ge "$(expected_arms)" ]
   # Greedy, 512 cap, reasoning off, hot cache, HumanEval. A row that does not
   # carry its conditions cannot be compared with anything.
   local line
@@ -30,7 +34,7 @@ col()  { head -1 "$REC" | tr '\t' '\n' | grep -nx "$1" | cut -d: -f1; }
 
 @test "draft acceptance on the single-slot arm lands in the published regime" {
   [ -f "$REC" ]
-  [ "$(rows)" -ge 12 ]
+  [ "$(rows)" -ge "$(expected_arms)" ]
   local a acc
   a=$(col draft_accept_pct)
   acc=$(awk -F'\t' -v a="$a" '$1=="np1-mtp"{print $a}' "$REC")

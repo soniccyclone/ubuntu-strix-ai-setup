@@ -5,13 +5,18 @@
 # idle; concurrency supplies that arithmetic intensity itself, at which point
 # drafting competes with real work.
 
-REC=bench/parallel-scaling.tsv
+REC="${REC:-bench/parallel-scaling.tsv}"
+WRITEUP="${WRITEUP:-docs/parallel-scaling.md}"
+# How many arms the sweep actually plans. Hardcoding this drifted once
+# already: the guard said 13 after an arm was dropped to 12.
+expected_arms() { grep -cE '^\s+"np[0-9]' bench/parallel-sweep.sh; }
+
 rows() { tail -n +2 "$REC" | grep -c . ; }
 col()  { head -1 "$REC" | tr '\t' '\n' | grep -nx "$1" | cut -d: -f1; }
 
 @test "each MTP arm has a matched no-MTP arm differing only in spec type" {
   [ -f "$REC" ]
-  [ "$(rows)" -ge 12 ]
+  [ "$(rows)" -ge "$(expected_arms)" ]
   # An earlier cycle's bench gave one arm draft flags the other lacked, which is
   # how a comparison quietly stops being one. Every condition except spec_type
   # must match between the pair.
@@ -30,7 +35,7 @@ PY
 
 @test "speculation-on rows carry a draft acceptance rate and off rows do not" {
   [ -f "$REC" ]
-  [ "$(rows)" -ge 12 ]
+  [ "$(rows)" -ge "$(expected_arms)" ]
   local st dn da
   st=$(col spec_type); dn=$(col draft_n); da=$(col draft_accept_pct)
   # draft-mtp must have drafted something and reported acceptance.
@@ -47,8 +52,8 @@ PY
 @test "a difference smaller than the combined spread is called inconclusive" {
   # The noise floor measured 13% peak-to-peak. Whatever the writeup concludes
   # about MTP, it must not name a winner for a gap the spread cannot resolve.
-  [ -f docs/parallel-scaling.md ]
-  run python3 - "$REC" docs/parallel-scaling.md <<'PY'
+  [ -f "$WRITEUP" ]
+  run python3 - "$REC" "$WRITEUP" <<'PY'
 import sys, csv, collections, re
 rows=list(csv.DictReader(open(sys.argv[1]), delimiter='\t'))
 doc=open(sys.argv[2]).read().lower()
