@@ -125,11 +125,17 @@ commented.
 non-thinking set (0.7 / 0.80 / presence 1.5) is for a different mode, and a
 presence penalty actively harms code, where repeating identifiers is correct.
 
-**Two slots, 131072 context each**, not one slot at 262144. opencode's `general`
-subagent runs work in parallel and inherits the main model, so with one slot
-every subagent call evicts the main session and forces a full re-prefill.
-Subagents are pinned to slot 1 via a second model entry aliased to the same
-server model.
+**One slot at 262144**, not two at 131072. An earlier revision reserved a second
+slot for opencode's `general` subagent, so a subagent call could not evict the
+session's KV and force a full re-prefill. The session log then showed that lane
+used twice in 590 assistant messages — half the context window held for 0.3% of
+the traffic, while plan-doc research hit compaction mid-run.
+
+`-c` is total across slots, so one slot gives the session all 262144. After
+opencode's 24576 compaction reserve and 32768 output reserve that is 204800 of
+working room, against 73728 at two slots. Subagents share the slot and contend
+with the session, which is the right trade at that usage.
+See [parallel-scaling.md](parallel-scaling.md).
 
 **`--cache-reuse` does not work here.** It has no effect on recurrent-state
 models, and this is a Gated DeltaNet hybrid.

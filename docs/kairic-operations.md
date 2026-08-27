@@ -56,20 +56,23 @@ environment. Note the extension is `.jsonc`.
 resolved configuration after merging and is the fastest way to confirm a change
 took effect.
 
-Three model entries, deliberately:
+Two model entries:
 
-- `code` — your session. Pinned to `id_slot: 0`.
-- `code-sub` — the same server model (`"id": "code"`) pinned to `id_slot: 1`,
-  assigned to the `general` and `explore` agents. opencode's `general` agent
-  runs work in parallel and inherits the main model unless told otherwise, so
-  without this every subagent call evicts your session's KV and forces a full
-  re-prefill. Confirm it is working in the server log:
-  `slot launch_slot_: id 1` alongside `slot process_sing: id 0 | saving idle slot`.
+- `code` — your session, and the `general` and `explore` agents. Pinned to
+  `id_slot: 0`, which is the only slot.
 - `compact` — the 4B.
 
-`limit.context` is **131072, not 262144**, because context is divided across
-slots and there are two. If you change `-np`, change this to match or compaction
-will fire after the slot has already overflowed.
+A third entry, `code-sub`, used to pin subagents to `id_slot: 1` so they could
+not evict your session. It was removed with the second slot: the session log
+recorded it serving two of 590 assistant messages. Subagents now share the one
+slot and contend with the session.
+
+`limit.context` is **262144**, the whole window, because there is one slot.
+**If you change `-np`, change this to match**: `-c` is total across slots, so
+two slots means 131072 here and eight means 32768, and a client declaring more
+than its slot has means compaction fires after the slot has already overflowed.
+`tests/p04-context.bats` and `tests/p05-recommendation.bats` fail if the two
+drift apart, or if a model pins a slot the server does not have.
 
 ## Performance, and what to expect
 
@@ -140,7 +143,7 @@ All are environment variables on the `code` role in
 | `KAIRIC_REASONING` | on | `off` disables thinking entirely |
 | `KAIRIC_REASONING_FORMAT` | deepseek | `none` leaves raw tags in content |
 | `KAIRIC_REASONING_BUDGET` | -1 | cap thinking tokens; -1 unrestricted |
-| `KAIRIC_SLOTS` | 2 | more slots divide context further |
+| `KAIRIC_SLOTS` | 1 | more slots divide context further; move `limit.context` with it |
 | `CONTEXT` | 262144 | total across slots |
 | `CACHE_RAM` | 16384 | prompt cache MiB |
 | `KAIRIC_EDGE_COMPATIBILITY_MODE` | 1 | **do not set to 0**, see below |

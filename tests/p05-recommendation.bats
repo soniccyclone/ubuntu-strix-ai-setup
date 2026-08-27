@@ -28,19 +28,34 @@ CLIENT=config/opencode-kairic.jsonc
   [ "$output" -ge 1 ]
 }
 
-@test "the shipped slot count is unchanged by this cycle" {
-  # This cycle measures and recommends. If it moved the default, it did so
-  # without the client change that must accompany it.
-  local slots
+@test "the shipped slot count is the one the writeup recommends" {
+  # Pinning a literal broke the moment the recommendation changed, which is the
+  # wrong shape for this: what must hold is that the shipped configuration and
+  # the published recommendation agree, whichever number they settle on.
+  local recommended slots
+  recommended=$(grep -oiE 'recommends (one|two|four|eight|[0-9]+) slot' "$WRITEUP" \
+                | head -1 | grep -oiE '(one|two|four|eight|[0-9]+)')
+  [ -n "$recommended" ]
+  case "$(echo "$recommended" | tr 'A-Z' 'a-z')" in
+    one) recommended=1 ;; two) recommended=2 ;;
+    four) recommended=4 ;; eight) recommended=8 ;;
+  esac
   slots=$(grep -oE 'KAIRIC_SLOTS:-[0-9]+' "$RUNNER" | grep -oE '[0-9]+$' | head -1)
-  [ "$slots" = "2" ]
+  [ "$slots" = "$recommended" ]
 }
 
-@test "the shipped client context is unchanged by this cycle" {
-  local got
-  got=$(python3 -c "
-import json,re
+@test "no client model pins a slot the server does not have" {
+  # code-sub used to pin id_slot 1. At one slot that slot does not exist, and a
+  # request pinned to it is a failure nobody would trace back to this file.
+  local slots
+  slots=$(grep -oE 'KAIRIC_SLOTS:-[0-9]+' "$RUNNER" | grep -oE '[0-9]+$' | head -1)
+  run python3 -c "
+import json,re,sys
 raw=re.sub(r'^\s*//.*$','',open('$CLIENT').read(),flags=re.M)
-print(json.loads(raw)['provider']['contract']['models']['code']['limit']['context'])")
-  [ "$got" = "131072" ]
+d=json.loads(raw)
+bad=[n for n,m in d['provider']['contract']['models'].items()
+     if (m.get('options',{}).get('id_slot') or 0) >= $slots]
+print(','.join(bad))"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
 }

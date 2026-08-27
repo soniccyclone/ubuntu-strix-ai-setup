@@ -12,17 +12,8 @@
           "tool_call": true,
           "reasoning": true,
           "attachment": false,
-          "limit": { "context": 131072, "output": 32768 },
+          "limit": { "context": 262144, "output": 32768 },
           "options": { "id_slot": 0 }
-        },
-        "code-sub": {
-          "id": "code",
-          "name": "[internal] subagent lane - not for chat",
-          "tool_call": true,
-          "reasoning": true,
-          "attachment": false,
-          "limit": { "context": 131072, "output": 16384 },
-          "options": { "id_slot": 1 }
         },
         "compact": {
           "name": "[internal] compaction worker - not for chat",
@@ -39,8 +30,8 @@
   "small_model": "contract/compact",
 
   "agent": {
-    "general":    { "model": "contract/code-sub" },
-    "explore":    { "model": "contract/code-sub" },
+    "general":    { "model": "contract/code" },
+    "explore":    { "model": "contract/code" },
     "compaction": { "model": "contract/compact" },
     "title":      { "model": "contract/compact" },
     "summary":    { "model": "contract/compact" }

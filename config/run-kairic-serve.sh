@@ -58,13 +58,24 @@ readonly library_path="$server_dir:$rocm/lib:$rocm/lib/rocm_sysdeps/lib:$rocm/li
 # repeating identifiers and syntax is correct rather than degenerate.
 # These same values are what the GGUF itself advertises in general.sampling.
 #
-# SLOTS: -np 2, not the vendor's 1. opencode's `general` subagent is documented
-# to "execute multiple units of work in parallel", and agents inherit the main
-# model, so with one slot every subagent call evicts the main session's KV and
-# forces a full re-prefill -- minutes at 228 tok/s on a large context. Two slots
-# keep the main session on 0 and subagents on 1. Context is TOTAL across slots,
-# so this is 131072 per slot; opencode's limit.context must match that, not the
-# 262144 the model supports.
+# SLOTS: -np 1, matching the vendor. An earlier revision used 2, reserving slot
+# 1 for opencode's `general` subagent so a subagent call would not evict the
+# main session's KV and force a full re-prefill.
+#
+# The session log says that lane was used twice in 590 assistant messages. It
+# was costing half the context window to serve 0.3% of the traffic: -c is TOTAL
+# across slots, so two slots meant 131072 each, and opencode then reserves 24576
+# for compaction and 32768 for output, leaving 73728 of actual working room out
+# of a 262144-token model. Plan-doc research hit compaction mid-run at 107257
+# tokens, against a trigger computed at 106496.
+#
+# One slot gives the whole 262144 to the session: 204800 of working room, 2.8x
+# more. The measured cost is nothing in aggregate throughput -- bench/parallel-
+# scaling.tsv shows it flat from one to four slots -- and per-stream is strictly
+# better the fewer slots there are. A subagent call now contends for the one
+# slot, which is the right trade at two uses in 590.
+#
+# opencode's limit.context must equal this: 262144 at one slot.
 #
 # Reasoning is ON with format 'deepseek', not the vendor runner's
 # '--reasoning off --reasoning-format none'. Two separate things were wrong for
@@ -111,7 +122,7 @@ exec /usr/bin/env \
   "$server" -m "$model" --alias "$alias_name" \
     --host "$host" --port "$port" --jinja -dev ROCm0 -ngl 999 \
     -c "$context" -b 2048 -ub 512 -fa on -ctk f16 -ctv f16 \
-    -t 16 -tb 32 -np ${KAIRIC_SLOTS:-2} -ctxcp 32 --cache-ram "$cache_ram" \
+    -t 16 -tb 32 -np ${KAIRIC_SLOTS:-1} -ctxcp 32 --cache-ram "$cache_ram" \
     --cache-prompt --cache-idle-slots --metrics \
     --kairic-edge \
     --spec-type draft-mtp \

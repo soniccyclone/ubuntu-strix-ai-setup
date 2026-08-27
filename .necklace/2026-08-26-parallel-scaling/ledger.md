@@ -449,3 +449,51 @@ tokens, so a prose pass is roughly three times the work and per-request rates
 scatter badly under eight-way interleaving. Their aggregates are stable and are
 what the writeup uses; the per-stream figures are named as not quotable rather
 than printed with a decimal point.
+
+## The recommendation was right about throughput and wrong about the premise
+
+Nathan reported hitting compaction mid-research while writing a plan document,
+on a model with a 262144-token window. The arithmetic explains it exactly:
+
+    262144  native window
+    131072  divided by two slots
+    106496  less opencode's 24576 compaction reserve   <- trigger
+     73728  less 32768 output reserve                  <- actual working room
+
+His peak session measured **107,257 tokens** against a computed trigger of
+106,496. Not close to it; on it.
+
+**The second slot existed for a lane that was never used.** opencode's own
+session database, 590 assistant messages:
+
+    code        585
+    compact       3
+    code-sub      2
+
+Half the context window was reserved for 0.3% of the traffic. The reasoning
+behind two slots was sound — a subagent call on one slot evicts the session's KV
+and forces a full re-prefill — and the premise was never checked against what
+opencode actually did.
+
+This document had recommended two slots on that premise a few hours earlier. The
+sweep's throughput numbers were not wrong and did not change; what changed is
+that the context cost is now weighed against measured usage rather than against
+an imagined subagent workload.
+
+Nathan added the argument that settles it independently of usage: eight slots
+buys 1.35x aggregate while making each agent 5.4x slower, and this is a
+single-agent machine. Aggregate throughput is the wrong objective function here.
+
+**Changed:** `KAIRIC_SLOTS` 2 to 1, opencode `limit.context` 131072 to 262144,
+and the `code-sub` entry removed — it pinned `id_slot: 1`, a slot that no longer
+exists. Verified on the production path: `n_slots = 1`, `new slot, n_ctx =
+262144`, contract answers, 47 GiB resident.
+
+Working room goes 73728 to 204800, 2.8x.
+
+**Two tests replaced rather than repaired.** They pinned the shipped slot count
+and context as literals, under the heading "unchanged by this cycle", and broke
+the moment the recommendation changed. A literal was the wrong shape: what has
+to hold is that the configuration and the published recommendation agree,
+whichever number they settle on, and that no client model pins a slot the server
+does not have. Both were verified to fail when reintroduced.

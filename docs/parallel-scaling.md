@@ -105,25 +105,34 @@ recorded here as one.
 
 ## Recommendation
 
-**This repository recommends two slots for agent work** — which is what it
-already ships, so the recommendation is to leave it alone. The evidence, not the
-habit:
+**This repository recommends one slot for agent work**, and ships that. The
+sweep above measures the throughput side; the session log settles the rest.
 
-- Aggregate throughput is flat from one to four slots (46.64, 46.33, 48.20 tok/s,
-  all inside each other's spread). The first three slots buy no more tokens per
-  second from the machine, they only divide what it already produces.
-- Eight slots does buy 1.35x aggregate (63.13 tok/s) — but per-stream falls to
-  9.44 tok/s, and each slot is left 32768 of context against a 24576 compaction
-  reserve. A coding agent with 8k of usable window is not a working agent.
-- Two slots costs nothing in aggregate against one, and keeps 131072 per slot,
-  which is what the subagent lane was configured for in the first place.
+- **Aggregate throughput is flat from one to four slots** (46.64, 46.33, 48.20
+  tok/s, all inside each other's spread). The first three slots buy no more
+  tokens per second from the machine. Eight buys 1.35x — and costs 5.4x in
+  per-stream rate, 51.29 down to 9.44 tok/s. For interactive work that is a bad
+  trade at every step.
+- **Slots are bought with context.** `-c` is total, so two slots is 131072 each
+  and eight is 32768. opencode then reserves 24576 for compaction and 32768 for
+  output, so two slots leaves **73728 tokens of working room** out of a
+  262144-token model, and eight leaves about 8k. That is not a working agent.
+- **One slot gives the session all 262144**, which is 204800 of working room
+  after the same reservations — 2.8x more than two slots.
 
-Eight slots is the right choice for a batch workload that wants total tokens and
-does not need context — which is not what this contract is for.
+The earlier revision of this document recommended two slots, reserving the
+second for opencode's subagent lane so a subagent call could not evict the main
+session and force a full re-prefill. That reasoning was sound and the premise
+was not: **the lane was used twice in 590 assistant messages.** Half the context
+window was being held for 0.3% of the traffic, and plan-doc research was hitting
+compaction mid-run at 107257 tokens against a trigger at 106496.
 
-**Nothing in `config/` was changed by this work.** A slot count cannot move
-without opencode's context limit moving with it, and that pairing is a decision
-rather than a consequence of a table.
+Subagents now share the single slot and contend with the session. At two uses in
+590 that is the right trade rather than a tolerated one.
+
+**Eight slots remains the right choice for a batch workload** that wants total
+tokens and does not need context or latency. That is not what this contract is
+for.
 
 ## Reproducing
 
