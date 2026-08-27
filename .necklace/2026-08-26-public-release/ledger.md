@@ -167,3 +167,45 @@ own `common` macro passes `--host 127.0.0.1`, and `docs/privileged-steps.md`
 section 3 exists specifically to say that design was abandoned and no firewall
 is needed. The comment describes a superseded design and contradicts both the
 code below it and the document it cites. It sits in a file item 2 already opens.
+
+## Nathan's answers to the open questions
+
+**Defect analysis: full scrub, rewrite both histories.** Chosen over the
+cheaper options because the repository has never been cloned, so the rewrite is
+free exactly once and this is that moment.
+
+**Agent-instruction stubs: point at the real docs.** The README, `make help`
+and `docs/kairic-operations.md` stay the single source of truth; the stubs
+become pointers rather than a second copy that drifts.
+
+**Repository description: keep it understated** — "Agentic AI on a Strix Halo
+box", matching the README's own title.
+
+## Scoping the scrub before committing to it
+
+Feasibility checked rather than assumed, because "rewrite both histories" is
+easy to say and can turn out to be a week.
+
+`dolt filter-branch -q <SQL> [<commit>]` exists in v2.3.1 and replays history
+applying a SQL statement, which is the right shape for deleting one issue from
+all 175 commits.
+
+On the git side, `git-filter-repo` is not installed; the built-in
+`filter-branch` is present and adequate at this size.
+
+The blast radius is smaller than the file counts suggested and needs stating
+precisely, because I got it wrong once already. Eighteen commits *touch*
+`.beads/issues.jsonl`, and only three of those change whether the text is
+present — but a blob persists across commits that do not touch it, so the text
+is actually carried by every commit from `7b0c5cc` (#78 of 117) to HEAD. Forty
+commits, all hashes from #78 onward changing.
+
+The redeeming detail: the text exists in exactly one path. Searching every
+commit on every ref for the defect wording returns `.beads/issues.jsonl` and
+nothing else — no ledger, no doc, no test fixture. A single-path rewrite.
+
+**Risk to carry into the next document:** a force-push over 40 rewritten
+commits and a rewritten dolt history are two separate rewrites of two stores
+that reference each other through `refs/dolt/data`. They have to be sequenced
+and verified together, not independently, and "beads still syncs afterwards" is
+a thing to prove rather than assume.

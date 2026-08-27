@@ -107,9 +107,31 @@ documented workaround has to say what it works around. An analysis of a defect
 nobody here worked around is a bug report published where its subject cannot
 answer, and this project's standing policy is not to file those.
 
-## Open questions
+## Resolved
 
-| Question | Why it cannot be settled by reading or running |
-| --- | --- |
-| How far should the defect analysis be removed: the working tree only, leaving it in git and dolt history; or a rewrite of both histories; or keep the issue database off the public remote entirely? | All three are achievable and the audit shows nothing forcing the choice. It is Nathan's call on whether a technical critique surviving in a history nobody will read is acceptable, weighed against a rewrite whose cost is low now and never again. |
-| What should the agent-instruction file and the repository description say, given both are read by strangers as a statement of what this project is? | The unfilled prompts are a defect, but what replaces them is an editorial choice about audience — whether those files address agents only, or double as the project's front matter. |
+The three questions this document opened have been answered and are no longer
+open.
+
+The defect analysis comes out of **both histories**, not just the working tree.
+The repository has never been cloned, which makes the rewrite free once and
+never again.
+
+The agent-instruction stubs become **pointers to the existing documentation**
+rather than a second copy of it, so there is one place for each fact and
+nothing to drift.
+
+The repository description stays **understated**, matching the README's own
+title rather than leading with a throughput figure.
+
+---
+
+<!--
+Altitude self-check.
+
+  Could two competent engineers read this and implement it differently, and both be right?
+    Yes. Where the generated file lives, how the scrub is executed, and where
+    provenance is stated are all open to them.
+
+  Could two competent engineers read this and disagree about whether the ticket was satisfied?
+    No. Every actor-outcome pair is checkable by running something.
+-->
