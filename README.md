@@ -21,6 +21,9 @@ context compaction without evicting your session.
     22.21 tok/s   the same model on the next-best local runtime
     12.23 tok/s   the same model on upstream llama.cpp
 
+Three engines, and the first two are separate forks of ROCmFPX by different
+authors — [which is which](docs/kairic-edge-opencode.md#upstreams-behind-the-numbers).
+
 **[docs/kairic-edge-opencode.md](docs/kairic-edge-opencode.md)** — setup from a
 fresh machine, in one command.
 **[docs/kairic-operations.md](docs/kairic-operations.md)** — running, tuning,

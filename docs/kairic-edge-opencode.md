@@ -25,6 +25,31 @@ Compatibility mode is what you want even though it is slower. The fast path is
 ~35% quicker and rejects every request carrying tool calls, temperature above
 zero, grammar or logprobs — which is every request an agent makes.
 
+## Upstreams behind the numbers
+
+The three figures in the README come from three different engines, and two of
+them are separate forks of the same project by different authors. Knowing which
+is which is the difference between reproducing a result and measuring something
+else.
+
+| Figure | Engine | Upstream |
+| ---: | --- | --- |
+| 41.89 tok/s | Kairic Edge, native IU4 lane | https://github.com/ciru-ai/ROCmFPX |
+| 22.21 tok/s | ROCmFP4 on HIP | https://github.com/charlie12345/ROCmFPX |
+| 12.23 tok/s | upstream llama.cpp, Vulkan | https://github.com/ggml-org/llama.cpp |
+
+**The two ROCmFPX forks are built as separate images on purpose.** They are
+different forks on different branches, and the Kairic build additionally needs a
+patched Composable Kernel — `ROCm/composable_kernel` at a pinned commit with a
+gfx1151 IU4 patch — that the other build does not use. Sharing one image would
+mean at least one of the two engines was not the thing its publisher tested,
+which would make the comparison meaningless.
+
+`harness/Containerfile.kairic` builds the first; `harness/Containerfile.rocmfpx`
+and `harness/Containerfile.rocmfpx-hip` build the second, Vulkan-only and HIP
+respectively. Each pins its commit, because a moving target here would silently
+change what the benchmark measured.
+
 ## Requirements
 
 - AMD Strix Halo (gfx1151) with unified memory. Nothing else is validated.
