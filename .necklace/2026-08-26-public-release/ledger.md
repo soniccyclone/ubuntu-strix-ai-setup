@@ -282,3 +282,40 @@ still sitting in the file. The assertion matches `_Add ..._`.
 
 Both are the same failure: an assertion narrower than the thing it claims to
 cover, which is the kind that passes forever and proves nothing.
+
+## The unit test passed and the thing was broken
+
+CUJ-01's tests went green against a synthetic probe config. Running the *real*
+tracked configs through the same overlay found `llama-swap.yaml` refusing to
+load:
+
+    error="unknown macro '${opt}' found in fast.cmd"
+
+`repl/macro-compose-order.sh` isolates it. A macro may reference another macro,
+but only if both definitions are visible when the referring file is parsed:
+
+| arrangement | result |
+| --- | --- |
+| composed, both files in one `-config-dir` | loads |
+| composed, `-config` tracked + `-config-dir` overlay | **fails** |
+| inlined, `-config` tracked + `-config-dir` overlay | loads |
+| composed, `-config` overlay + `-config-dir` tracked | loads |
+
+`-config` is resolved before `-config-dir` is merged, so a `server:` macro in
+the tracked file referencing the overlay's `${opt}` is expanded while `${opt}`
+is still undefined.
+
+The earlier `macro-in-macro.sh` probe put both files in one `-config-dir` and
+reported composition as safe. It was measuring the one arrangement the unit
+does not use. That is the whole failure: a probe that answered a slightly
+different question than the one the design depended on.
+
+Fixed by writing the llama-server path out at each use site instead of hoisting
+it into a macro. Three repetitions, and correct however llama-swap is invoked —
+which matters, because a stranger will not necessarily invoke it the way the
+unit does. Swapping the unit's flags would also work and was rejected: pointing
+`-config-dir` at `config/` would load both contracts at once, and that file's
+own header explains why 69 + 60 GiB does not fit on this machine.
+
+Both real configs now load and list their roles: `deep fast fast-text` and
+`code compact`.

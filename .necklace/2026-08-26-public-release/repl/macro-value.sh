@@ -5,7 +5,7 @@
 # Falsifiable: the launched command writes its own argv to a file. If that file
 # contains the literal "${m}" or is absent, the value did not propagate.
 set -u
-BIN=/home/nathan/.local/opt/llama-swap/llama-swap
+BIN="${LLAMA_SWAP:-$HOME/.local/opt/llama-swap/llama-swap}"
 D=$(mktemp -d); trap 'rm -rf "$D"; kill ${P:-0} 2>/dev/null' EXIT
 OUT="$D/argv.txt"
 

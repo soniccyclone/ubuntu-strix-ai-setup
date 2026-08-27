@@ -11,18 +11,23 @@ TESTS     ?= tests
 
 .PHONY: help setup test test-isolation harness-up harness-down clean \
         media-up media-down asset viewer sprite rig llm-up llm-down chat status stop-all \
-        kairic-up kairic-down kairic-install kairic-setup \
+        kairic-up kairic-down kairic-install kairic-setup env \
         faces-ladder ref character prompt refcheck rigcheck mesh from-ref require-subj require-img
 
 help:                    ## Show this help
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) \
 	  | awk -F':.*?## ' '{printf "  %-16s %s\n", $$1, $$2}'
 
+env:                     ## Write .env if absent, then regenerate the serving overlay
+	@scripts/env-init.sh
+	@scripts/env-overlay.sh
+
 setup:                   ## Install the user-level test tooling
 	@command -v bats >/dev/null || npm i -g bats
 	@command -v jq   >/dev/null || { echo "jq missing; apt install jq (needs root)" >&2; exit 1; }
 	@command -v podman >/dev/null || { echo "podman missing" >&2; exit 1; }
-	@echo "setup ok: bats $$(bats --version | awk '{print $$2}'), jq $$(jq --version), $$(podman --version)"
+	@command -v dolt >/dev/null || { echo "dolt missing; the issue-history assertions need it. Install user-level from github.com/dolthub/dolt/releases and put it on PATH." >&2; exit 1; }
+	@echo "setup ok: bats $$(bats --version | awk '{print $$2}'), jq $$(jq --version), $$(podman --version), dolt $$(dolt version | head -1 | awk '{print $$3}')"
 
 harness-up:              ## Start the containerised test harness
 	@./harness/suite.sh up

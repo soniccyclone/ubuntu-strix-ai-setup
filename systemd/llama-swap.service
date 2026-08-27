@@ -1,6 +1,8 @@
 [Unit]
 Description=llama-swap — the serving contract
-Documentation=file:///home/nathan/code-stuff/ubuntu-strix-ai-setup/config/llama-swap.yaml
+Documentation=man:llama-swap(1)
+# Config: config/llama-swap.yaml in the repository this unit was installed from,
+# plus the generated overlay in ~/.config/llama-swap/.
 After=network.target
 
 [Service]
@@ -9,6 +11,7 @@ Type=simple
 # routable interface, which is why this project needs no firewall rule.
 ExecStart=%h/.local/opt/llama-swap/llama-swap \
   -config %h/code-stuff/ubuntu-strix-ai-setup/config/llama-swap.yaml \
+  -config-dir %h/.config/llama-swap \
   -listen 127.0.0.1:8080 \
   -watch-config
 Restart=on-failure

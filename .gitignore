@@ -8,3 +8,6 @@
 
 # npm deps for the glTF validator used by the mesh tests
 node_modules/
+
+# Machine-local paths, written by scripts/env-init.sh
+.env

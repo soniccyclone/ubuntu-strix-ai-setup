@@ -6,7 +6,7 @@
 # the literal "${opt}", macros do NOT expand in env: and that path cannot be
 # de-personalised the same way.
 set -u
-BIN=/home/nathan/.local/opt/llama-swap/llama-swap
+BIN="${LLAMA_SWAP:-$HOME/.local/opt/llama-swap/llama-swap}"
 D=$(mktemp -d); trap 'rm -rf "$D"; kill ${P:-0} 2>/dev/null' EXIT
 OUT="$D/env.txt"
 

@@ -8,8 +8,15 @@
 set -uo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-MODELS="${MODELS:-$HOME/models}"
-OPT="${OPT:-$HOME/.local/opt}"
+
+# Machine-local paths come from .env and nowhere else. Deliberately no
+# environment-variable override: sourcing assigns unconditionally, so
+# `MODELS=/x setup-kairic.sh` would be silently overridden by the file it
+# reads. One mechanism, no precedence to reason about.
+"$REPO/scripts/env-init.sh" "$REPO/.env"
+set -a; . "$REPO/.env"; set +a
+: "${MODELS:?MODELS missing from .env}"
+: "${OPT:?OPT missing from .env}"
 LLAMA_SWAP_VER="${LLAMA_SWAP_VER:-v250}"
 IMAGE="localhost/kairic:v1.1"
 
@@ -131,6 +138,11 @@ ok "compaction model present"
 # ---------------------------------------------------------------- wiring
 step "Service and client wiring"
 mkdir -p ~/.config/systemd/user ~/.config/opencode
+
+# The tracked configs in config/ name macros they do not define, so they cannot
+# load alone -- llama-swap fails by name rather than serving the wrong weights.
+# This writes the machine half.
+REPO="$REPO" "$REPO/scripts/env-overlay.sh" "$REPO/.env" "$HOME/.config/llama-swap"
 sed "s|%h/code-stuff/ubuntu-strix-ai-setup|$REPO|g" \
   "$REPO/systemd/llama-swap-kairic.service" > ~/.config/systemd/user/llama-swap-kairic.service
 systemctl --user daemon-reload

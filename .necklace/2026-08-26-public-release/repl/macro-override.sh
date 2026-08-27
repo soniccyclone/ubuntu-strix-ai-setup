@@ -7,7 +7,7 @@
 # Falsifiable: if the log shows /default/models rather than /srv/overlay, the
 # overlay does not override and the tracked file cannot carry a default.
 set -u
-BIN=/home/nathan/.local/opt/llama-swap/llama-swap
+BIN="${LLAMA_SWAP:-$HOME/.local/opt/llama-swap/llama-swap}"
 D=$(mktemp -d); trap 'rm -rf "$D"; kill ${P:-0} 2>/dev/null' EXIT
 
 probe(){ # label, dir

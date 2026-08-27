@@ -9,7 +9,7 @@
 # Falsifiable at every stage: if the launched process does not receive the
 # value written in .env, the chain is broken somewhere and the design fails.
 set -u
-BIN=/home/nathan/.local/opt/llama-swap/llama-swap
+BIN="${LLAMA_SWAP:-$HOME/.local/opt/llama-swap/llama-swap}"
 D=$(mktemp -d); trap 'rm -rf "$D"; kill ${P:-0} 2>/dev/null' EXIT
 OUT="$D/argv.txt"
 

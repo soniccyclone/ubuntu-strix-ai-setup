@@ -6,7 +6,7 @@
 # defined in a sibling file, macros do NOT merge across -config-dir and the
 # overlay design is dead. If it loads and serves /v1/models, it works.
 set -u
-BIN=/home/nathan/.local/opt/llama-swap/llama-swap
+BIN="${LLAMA_SWAP:-$HOME/.local/opt/llama-swap/llama-swap}"
 D=$(mktemp -d); trap 'rm -rf "$D"; kill ${P:-0} 2>/dev/null' EXIT
 
 mkdir -p "$D/conf"

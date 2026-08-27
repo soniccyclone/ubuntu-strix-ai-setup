@@ -9,7 +9,7 @@
 # cmd is exec'd directly (no shell), so the shell cannot expand it for us
 # and confound the result.
 set -u
-BIN=/home/nathan/.local/opt/llama-swap/llama-swap
+BIN="${LLAMA_SWAP:-$HOME/.local/opt/llama-swap/llama-swap}"
 PORT=18099
 D=$(mktemp -d)
 trap 'rm -rf "$D"; kill "${SWAP_PID:-0}" 2>/dev/null' EXIT

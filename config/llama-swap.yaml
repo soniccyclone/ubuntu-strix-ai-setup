@@ -9,8 +9,18 @@
 # The LAN is closed with a firewall rule instead; see docs/privileged-steps.md.
 
 macros:
-  server: /home/nathan/.local/opt/llama.cpp-vulkan/llama-b10502/llama-server
-  m: /home/nathan/models
+  # ${opt} and ${m} come from the machine overlay that scripts/env-overlay.sh
+  # writes from .env. They are deliberately not defined here: llama-swap
+  # allows exactly one definition per macro, so a default here would make the
+  # overlay a fatal conflict rather than an override.
+  #
+  # The llama-server path is written out in each cmd rather than hoisted into a
+  # `server` macro. A macro defined here CANNOT reference one from the overlay:
+  # -config is resolved before -config-dir is merged, so ${opt} is still
+  # undefined at that point and the config fails to load. It composes fine when
+  # both files sit in one -config-dir, which is exactly the arrangement that
+  # made this look safe. Measured:
+  # .necklace/2026-08-26-public-release/repl/macro-compose-order.sh
   # -ngl 999 because partial offload is a proportional loss on this part:
   # the CPU reaches ~80 GB/s of a ~256 GB/s bus (repl/membw.c).
   common: "--host 127.0.0.1 --port ${PORT} -ngl 999 -fa on --no-warmup"
@@ -29,38 +39,38 @@ models:
   # 2.24x slower, because its IQ tensors land on the Gated DeltaNet path.
   fast:
     cmd: >
-      ${server} ${common}
+      ${opt}/llama.cpp-vulkan/llama-b10502/llama-server ${common}
       -m ${m}/qwen3.6-bartowski/Qwen_Qwen3.6-35B-A3B-Q4_K_M.gguf
       --mmproj ${m}/qwen3.6-35b-a3b/mmproj-F16.gguf
       -c 262144
     ttl: 900
     aliases: ["vision", "gpt-4o-mini", "claude-3-5-haiku-latest"]
     env:
-      - "LD_LIBRARY_PATH=/home/nathan/.local/opt/llama.cpp-vulkan/llama-b10502"
+      - "LD_LIBRARY_PATH=${opt}/llama.cpp-vulkan/llama-b10502"
 
   # Same weights, no projector. Exists so a text-only role can refuse an image
   # rather than answer confidently about one it cannot see (CUJ-05).
   fast-text:
     cmd: >
-      ${server} ${common}
+      ${opt}/llama.cpp-vulkan/llama-b10502/llama-server ${common}
       -m ${m}/qwen3.6-bartowski/Qwen_Qwen3.6-35B-A3B-Q4_K_M.gguf
       -c 262144
     ttl: 600
     env:
-      - "LD_LIBRARY_PATH=/home/nathan/.local/opt/llama.cpp-vulkan/llama-b10502"
+      - "LD_LIBRARY_PATH=${opt}/llama.cpp-vulkan/llama-b10502"
 
   # 69.10 GiB | 215 pp512 | 26.4 tg128 | vision | 262k native ctx
   # Could not be loaded at all before GTT went 61.41 -> 110 GiB.
   deep:
     cmd: >
-      ${server} ${common}
+      ${opt}/llama.cpp-vulkan/llama-b10502/llama-server ${common}
       -m ${m}/qwen3.5-122b/Qwen3.5-122B-A10B-Q4_K_M-00001-of-00002.gguf
       --mmproj ${m}/qwen3.5-122b/mmproj-BF16.gguf
       -c 262144
     ttl: 600
     aliases: ["claude-sonnet-4-5", "gpt-4o"]
     env:
-      - "LD_LIBRARY_PATH=/home/nathan/.local/opt/llama.cpp-vulkan/llama-b10502"
+      - "LD_LIBRARY_PATH=${opt}/llama.cpp-vulkan/llama-b10502"
 
 # fast (20.7) + deep (69.1) = 89.8 GiB against 108.3 free, so both can be
 # resident. Anything larger must swap, which is what the ttls are for.

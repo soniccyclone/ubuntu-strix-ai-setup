@@ -33,7 +33,13 @@
 # for correct recurrent-state restore on this hybrid model.
 
 macros:
-  m: /home/nathan/models
+  # ${m} and ${repo} come from the machine overlay written by
+  # scripts/env-overlay.sh from .env. Not defined here on purpose: llama-swap
+  # permits one definition per macro, so a default would collide rather than
+  # be overridden.
+  #
+  # ${k} is a path INSIDE the container and is the same on every machine, so
+  # it stays with the config.
   k: /models/qwen3.8-kairic
 
 models:
@@ -51,7 +57,7 @@ models:
       podman run --rm --replace --name kairic-serve
       --device=/dev/kfd --device=/dev/dri --group-add keep-groups
       --network=host -v ${m}:/models:z
-      -v /home/nathan/code-stuff/ubuntu-strix-ai-setup/config/run-kairic-serve.sh:/run-kairic-serve.sh:ro,z
+      -v ${repo}/config/run-kairic-serve.sh:/run-kairic-serve.sh:ro,z
       --entrypoint /bin/bash
       -e LLAMA_SERVER=/engine/llama-server
       -e MODEL_PATH=${k}/Qwen3.8-27B-IU4-Kairic-Edge.gguf

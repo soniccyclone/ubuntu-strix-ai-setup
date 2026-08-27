@@ -41,7 +41,7 @@ setup_file() {
   [ "$status" -eq 0 ]
   [ "${output//[[:space:]]/}" = "0" ]
 
-  run podman run --rm --network="$NET" "$PROBE" ls /home/nathan
+  run podman run --rm --network="$NET" "$PROBE" ls "$HOME"
   [ "$status" -ne 0 ]
 }
 
