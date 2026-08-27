@@ -394,3 +394,58 @@ Not yet established across other slot counts. If it holds, any verdict against
 the ngram-only arm carries a wider band than a naive reading of the noise floor
 would suggest, and the report's verdict function already accounts for that by
 using the mean of both arms' spreads rather than a fixed threshold.
+
+## The answer, and being wrong on the way to it
+
+MTP pays at every slot count measured, including eight and including prose. The
+question anticipated the opposite and that is what makes the result worth
+sending back.
+
+| slots | with MTP | without | gap | band | verdict |
+| ---: | ---: | ---: | ---: | ---: | --- |
+| 1 | 46.64 | 31.21 | +39.6% | ±12.4% | MTP faster |
+| 2 | 46.33 | 37.72 | +20.5% | ±13.6% | MTP faster |
+| 4 | 48.20 | 42.53 | +12.5% | ±16.6% | inconclusive |
+| 8 | 63.13 | 51.37 | +20.5% | ±11.7% | MTP faster |
+| 8 prose | 33.93 | 26.82 | +23.4% | ±20.0% | MTP faster |
+
+**I called it wrong twice while the arms were landing, both times toward the
+expected answer.** After three points I described aggregate throughput as flat
+across slot counts; it was flat for one to four and rose 1.35x at eight. Then I
+framed MTP as becoming "redundant" under concurrency, and the eight-slot pair
+gave it a clear twenty percent.
+
+The verdict function did its job on the document. It could not do anything about
+running commentary, and the gap between the two is the lesson: the discipline
+that stops a writeup overclaiming has to be a property of the tooling, because
+it is demonstrably not a property of the person watching numbers arrive one at a
+time with a hypothesis already in mind.
+
+The four-slot `inconclusive` is honest rather than a gap in the story. That arm's
+comparison partner carried ±21.5%, the widest spread of the sweep, and a 12.5%
+difference cannot be resolved against it.
+
+## The hypothesis that died
+
+`np1-mtp` 46.64 against `np1-cache8192` 46.01: 1.4% apart inside a ±8.9% band.
+Prompt cache size makes no detectable difference on this workload, so the
+explanation offered earlier for the published 41.89 reading low — that the run
+behind it used 8192 where the shipped config uses 16384 — is measured and wrong.
+
+The gap is now unexplained. The remaining candidate is the task subset, ten tasks
+against a pool of eight, and it is recorded as a hypothesis rather than promoted
+to a cause because that is precisely the move that just failed.
+
+## Where the noise lived
+
+The no-MTP arms were consistently less repeatable than the MTP arms, and got
+worse with concurrency: ±16.6%, ±18.8%, ±21.5%, ±14.4%. N-gram speculation
+depends on matching text it has already seen, which varies more between problems
+than a learned predictor does.
+
+The prose arms' per-stream figures are unusable — ±52.2% and ±45.8%. Prose runs
+to the full token cap where HumanEval completions stop early at around 162
+tokens, so a prose pass is roughly three times the work and per-request rates
+scatter badly under eight-way interleaving. Their aggregates are stable and are
+what the writeup uses; the per-stream figures are named as not quotable rather
+than printed with a decimal point.
