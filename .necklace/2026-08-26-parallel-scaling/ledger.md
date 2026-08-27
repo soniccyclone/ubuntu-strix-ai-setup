@@ -198,3 +198,38 @@ spot-check recovers most of that answer for two arms.
 
 **Measure and recommend, do not change the default.** Slots cannot move without
 opencode's `limit.context` moving with them, and that pairing is a decision.
+
+## Toggle works, memory is flat, and a hint that must not be quoted
+
+`repl/spec-toggle-np8.sh`. The shipped runner hardcodes `--spec-type draft-mtp`
+and offers no environment variable, so the no-MTP arm needs a variant. One sed
+against the shipped file produces `repl/run-kairic-serve-spec.sh`, differing in
+exactly one line.
+
+Three things settled:
+
+**`--spec-type none` disables speculation cleanly** and llama-server tolerates
+the `--spec-draft-*` flags remaining on the command line beside it. `draft_n`
+goes 148 to 0. Had it rejected them, the arm would have needed a second runner
+rather than a toggle.
+
+**Resident memory does not grow with slots.** 47 GiB at `-np 1`, 47 at `-np 2`,
+46 at `-np 8`. `-c` being total is why: the KV allocation is fixed and the slots
+divide it. Confirmed by `slot_ctx` reading 262144 / 131072 / 32768 across those
+three. Eight arms holding a constant ~47 GiB is a much easier thing to promise
+Nathan than one that grows.
+
+**And a number that looks like an answer and is not one:**
+
+    spec-type=draft-mtp  np=2  draft_n=148  accept=58.8%  aggregate=10.71 tok/s
+    spec-type=none       np=2  draft_n=0                  aggregate=17.13 tok/s
+
+MTP off measuring 60% faster is exactly the shape mathieu predicted, which is
+precisely why it should not be repeated anywhere. It is disqualified three times
+over: the generic mixed prompt set rather than the HumanEval slice, a 64-token
+cap where startup dominates and steady-state decode barely happens, and a single
+sample against a 13% noise floor. Its only valid readings are that the toggle
+works and that the question is live.
+
+Writing it down because a plausible number that agrees with a prediction is the
+easiest kind to start quoting by accident.
