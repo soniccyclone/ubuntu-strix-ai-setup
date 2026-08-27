@@ -139,3 +139,50 @@ The generic-prompt harness is not wasted — a prose arm is worth one row, becau
 acceptance is what MTP's value rides on and prose is where acceptance already
 collapses. If MTP stops paying under concurrency, prose at `-np 8` is where it
 will be worst.
+
+## The published figure reproduces — and is beaten by its own repository
+
+`repl/baseline-27b.sh`, matched to the conditions behind 41.89: HumanEval 0-9,
+greedy, 512 cap, reasoning off, compatibility mode, `-np 1`, cold pass first and
+discarded.
+
+| pass | measured | published | draft accept |
+| --- | ---: | ---: | ---: |
+| cold | 30.00 | 28.41 | 70.8% |
+| hot | **49.22** | **41.89** | 76.2% |
+| hot again | 46.03 | — | 74.2% |
+
+Draft acceptance lands on 76.2% — the published value to the decimal — which is
+the strongest evidence the two runs are the same measurement. Cold is within
+5.6%. Hot is 10-17% *above* what the repository claims.
+
+The two hot passes differ from each other by 6.5%, comfortably inside the 13%
+noise floor from `variance-4b.sh`, so neither is quotable alone.
+
+**The leading explanation is that the published figure is stale rather than
+wrong.** The run that produced it used `--cache-ram 8192`; the shipped config
+now uses `16384`, raised deliberately during the release cycle because agent
+turns reuse thousands of tokens of prefix. Hot throughput is exactly what a
+larger prompt cache should move. Same `-np 1` in both, so slots are not it.
+
+Not established — attributing it needs the A/B, which is one arm of the sweep
+rather than a separate errand. Recorded as a hypothesis, not a conclusion.
+
+What it means for the Discord thread: Nathan hedged that he had not vetted the
+number. It vets. The acceptance rate is exact, and the throughput figure is
+conservative against his own current configuration.
+
+## Nathan's machine is not idle any more
+
+Mid-cycle, `podman ps` showed `ghcr.io/soniccyclone/lodestone-upstream` started
+21 seconds earlier. Not this project's, not started here.
+
+At the time of checking it had not taken GTT (2 GiB used of 110, 105 GiB of RAM
+available), so the baseline run was unaffected. But the full sweep is eight arms
+holding ~48 GiB for roughly half an hour, and the rule this repository already
+learned the hard way is that process-level tools report a unified-memory model
+as approximately nothing. Whatever lodestone grows into will not appear in
+`podman stats` either if it touches the GPU.
+
+The sweep asks Nathan before it runs, and reads GTT between arms rather than
+assuming the headroom it measured at the start is still there.
