@@ -1,9 +1,11 @@
 # The Kairic contract — Qwen3.8-27B at its full native window, plus a small
-# model of the same family to do compaction without evicting it.
+# model of the same family to do compaction without evicting it. Two 27B roles
+# now: `code` is stock Kairic Edge, `ablit` is abliterated weights through the
+# same engine and runner. They swap; see the groups block at the foot.
 #
 # Deliberately a SEPARATE file from llama-swap.yaml rather than three more
-# roles inside it. That file also carries `deep` at 69.1 GiB; `code` and
-# `compact` here come to 60 GiB, and 69 + 60 exceeds this machine. Keeping the
+# roles inside it. That file also carries `deep` at 69.1 GiB; one 27B plus
+# `compact` here comes to 63 GiB, and 69 + 63 exceeds this machine. Keeping the
 # heavy roles in different files means the overcommit cannot be expressed at
 # all, instead of being prevented by group semantics I would have to get right.
 # Run one contract or the other, never both.
@@ -11,7 +13,10 @@
 # Measured on this machine, 2026-08-23 (repl/kairic-humaneval.sh):
 #   code    46 GiB at load    56.72 tok/s fast path / 41.89 compatibility
 #   compact 14 GiB at load    1025 tok/s prefill, 34.0 tok/s generation
-#   at load 60 GiB; AFTER USE it climbed to 91 GiB used / 31 GiB free.
+# and 2026-08-28 (.necklace/2026-08-28-uncensored-27b/repl/sidecar-bench.tsv):
+#   ablit   49 GiB at load    48.44 tok/s compatibility, pass@1 92.7%
+#   at load 63 GiB; AFTER USE expect the same climb `code` shows below.
+#   The two 27Bs never load together, so the peak does not stack.
 #
 # That climb is the point to understand. The weights and the full 262144 KV are
 # allocated up front, so context size costs nothing further. What grows is the
@@ -41,6 +46,7 @@ macros:
   # ${k} is a path INSIDE the container and is the same on every machine, so
   # it stays with the config.
   k: /models/qwen3.8-kairic
+  a: /models/qwen3.8-ablit
 
 models:
   # Qwen3.8-27B-IU4 Kairic Edge. Launched through the vendor's own runner
@@ -74,14 +80,57 @@ models:
     aliases: ["kairic", "claude-sonnet-4-5", "gpt-4o"]
     checkEndpoint: /health
 
-  # Qwen3.8-4B-Distill Q8_0. Same qwen35 hybrid architecture as the 27B, so its
+  # Same engine, same runner, same recipe -- abliterated weights.
+  #
+  # Huihui-Qwen3.8-27B-abliterated, quantised to Kairic's own per-tensor
+  # precision map (454 ROCmFP4, 50 promoted to Q6_0_ROCMFPX, Q8_0 head,
+  # Q6_K embeddings) and served with IU4 sidecars packed by
+  # .necklace/2026-08-28-uncensored-27b/repl/pack_pfs.py. That packer was
+  # validated by byte-diffing a stock repack against jcbtc's published
+  # sidecars -- FFN codes 100% of nibbles, GDN-Output 100% bit-exact.
+  #
+  # Measured on this machine, 2026-08-28 (repl/sidecar-bench.tsv), one stream,
+  # HumanEval pool, five repeats, compatibility mode:
+  #   code   (censored)   48.75 tok/s +/-6.5%   accept 72.8   47 GiB
+  #   ablit                48.44 tok/s +/-8.0%  accept 71.6   49 GiB
+  # HumanEval pass@1 92.7% (152/164), against 91.5% for the same weights
+  # without sidecars. Inside the reference's noise band on both axes.
+  #
+  # ONLY the four paths below differ from `code`. Sampling, context, slots,
+  # compatibility mode and every PROMPTFORGE_* variable come from the shared
+  # runner, so the two roles differ in weights and nothing else. Keep it that
+  # way, or the comparison above stops being one.
+  ablit:
+    cmd: >
+      podman run --rm --replace --name ablit-serve
+      --device=/dev/kfd --device=/dev/dri --group-add keep-groups
+      --network=host -v ${m}:/models:z
+      -v ${repo}/config/run-kairic-serve.sh:/run-kairic-serve.sh:ro,z
+      --entrypoint /bin/bash
+      -e LLAMA_SERVER=/engine/llama-server
+      -e MODEL_PATH=${a}/Qwen3.8-27B-ablit-Kairic-Edge.gguf
+      -e KAIRIC_FFN_SIDECAR=${a}/Qwen3.8-27B-ablit-Kairic-IU4-FFN.pfs
+      -e KAIRIC_GDN_SIDECAR=${a}/Qwen3.8-27B-ablit-Kairic-IU4-GDN.pfs
+      -e KAIRIC_GDN_OUTPUT_SIDECAR=${a}/Qwen3.8-27B-ablit-Kairic-IU4-GDN-Output.pfs
+      -e KAIRIC_EDGE_COMPATIBILITY_MODE=1
+      -e CONTEXT=262144
+      -e CACHE_RAM=16384
+      -e HOST=127.0.0.1 -e PORT=${PORT}
+      localhost/kairic:v1.1 /run-kairic-serve.sh
+    # No ttl, same reasoning as `code`. Switching between the two 27Bs costs a
+    # ~90s load either way; that is the price of the choice, not a bug.
+    aliases: ["ablit", "uncensored", "claude-opus-4-1"]
+    checkEndpoint: /health
+
+  # Qwen3.8-4B-Distill Q4_K_M. Same qwen35 hybrid architecture as the 27B, so its
   # 262144 window is cheap for the same reason: most blocks are Gated DeltaNet
   # with constant state.
   #
-  # Q8_0 on a 4B rather than Q4 on a 9B on purpose. A compaction summary is
-  # written once and then silently conditions every later turn, so a quiet
-  # quantisation error there is expensive and invisible. Buy quality on the
-  # model whose mistakes you never see.
+  # Q4_K_M, downloaded from empero-ai's GGUF repo. It was Q8_0 for a while on a
+  # buy-quality-where-mistakes-are-invisible argument that was never actually
+  # weighed against the cost; no quality regression at Q4 has been measured, and
+  # if one shows up the same repo ships Q5_K_M, Q6_K and Q8_0 to move back up.
+  # 2.78 GB against Q8_0's 4.61.
   #
   # REASONING: off, so the 4B never generates thoughts -- compaction wants speed
   # and its output is a summary, not an argument. But the FORMAT is `deepseek`,
@@ -107,7 +156,7 @@ models:
       --entrypoint /engine/llama-server
       -e HIP_VISIBLE_DEVICES=0
       localhost/kairic:v1.1
-      -m /models/qwen3.8-4b/Qwen3.8-4B-Q8_0.gguf
+      -m /models/qwen3.8-4b/Qwen3.8-4B-Q4_K_M.gguf
       --alias compact --host 127.0.0.1 --port ${PORT}
       --jinja -dev ROCm0 -ngl 999 -c 262144 -fa on
       -ctk f16 -ctv f16 --no-warmup
@@ -115,11 +164,32 @@ models:
     aliases: ["claude-3-5-haiku-latest", "gpt-4o-mini"]
     checkEndpoint: /health
 
-# swap:false so both stay loaded. If compaction could evict the 27B, every
-# compaction would cost a full reload of it afterwards, which is the entire
-# problem this file exists to avoid.
+# The two 27Bs swap; the 4B never does.
+#
+# llama-swap permits a model in exactly ONE group -- "model member c is used in
+# multiple groups" is a hard config error -- so {code,compact} and
+# {ablit,compact} cannot both exist. Verified against v250, not assumed.
+#
+# Hence this shape. `contract` is swap:true, so requesting `ablit` unloads
+# `code` and vice versa: 49 + 14 = 63 GiB peak, where holding both 27Bs would
+# be 109 on a 122 GiB machine that also compiles. `helper` is exclusive:false
+# and persistent:true, which is what keeps `compact` alive across a swap. Put
+# compact inside an exclusive group instead and opencode thrashes: every
+# compaction would evict the 27B, and reloading the 27B would evict compact.
+#
+# Probed rather than reasoned, on v250 with stub upstreams:
+#   after code:          [code]
+#   after compact:       [code compact]
+#   after ablit:         [ablit compact]
+#   after compact again: [ablit compact]
+#   after code again:    [code compact]
 groups:
-  resident:
-    swap: false
+  contract:
+    swap: true
     exclusive: true
-    members: ["code", "compact"]
+    members: ["code", "ablit"]
+  helper:
+    swap: false
+    exclusive: false
+    persistent: true
+    members: ["compact"]

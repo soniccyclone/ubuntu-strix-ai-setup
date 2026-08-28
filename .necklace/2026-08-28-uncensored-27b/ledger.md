@@ -1093,3 +1093,178 @@ No regression. Machine returned to 4 GiB GTT, no containers, after every arm.
 Validation as listed in the handoff: 1 done (byte-diff, with the caveat that
 the source is stock bf16 rather than Kairic's GGUF), 2 done, 3 done, 4 done,
 5 done.
+
+# Integration: the abliterated model as a second role in the contract
+
+Nathan's ask: a new option in opencode, not a replacement. The Kairic setup
+must keep working exactly as it did.
+
+## The group layout is the whole problem, and it was probed rather than reasoned
+
+opencode reads one config and sets `small_model` globally, so a live model
+picker needs all three roles on one llama-swap. The obvious shape --
+`{code, compact}` and `{ablit, compact}` -- is impossible:
+
+    model member c is used in multiple groups: g2 and g1
+
+A hard config error in v250. So `compact` can live in exactly one group, and
+whichever 27B is not in that group would evict it on every load. Put `compact`
+in an exclusive group and opencode thrashes: each compaction evicts the 27B,
+and reloading the 27B evicts compact.
+
+What works, probed on v250 with stub upstreams before any real config was
+written:
+
+    groups:
+      contract: {swap: true,  exclusive: true,               [code, ablit]}
+      helper:   {swap: false, exclusive: false, persistent: true, [compact]}
+
+    after code:          [code]
+    after compact:       [code compact]
+    after ablit:         [ablit compact]
+    after compact again: [ablit compact]
+    after code again:    [code compact]
+
+Then confirmed on the real models, five steps, `repl/`-adjacent persist probe:
+
+    1. compact first                    19 GiB   [compact]
+    2. ablit                            64 GiB   [ablit compact]
+    3. compact again, no reload         64 GiB   [ablit compact]
+    4. code, swaps ablit out            64 GiB   [code compact]
+    5. compact again                    64 GiB   [code compact]
+
+64 GiB against the 63 predicted. The two 27Bs never coexist, so the peak does
+not stack; holding both would be 109 on a 122 GiB machine that also compiles.
+
+## Served, both directions
+
+`ablit` loads through Kairic's own engine and runner with only four paths
+changed. The IU4 path is live, not silently off:
+
+    "record":"promptforge_init","mode":"iu4_ffn",
+    "device_bytes":8576856064,"wmma":"v_wmma_i32_16x16x16_iu4",
+    "transform":"block_hadamard_1024"      sidecar errors: 0
+
+Both 27Bs return `reasoning_content` with no `<think>` leaking into content,
+which is the failure `--reasoning-format none` causes and which the interactive
+settings had never been exercised against on these weights -- the bench ran
+reasoning off.
+
+Single short greedy-free replies measured 13.19 tok/s for `code` and 14.11-14.41
+for `ablit`. **Neither is comparable to the 48.44 in the bench table above.**
+That figure is greedy, five repeats, a HumanEval pool; these are one cold
+20-to-60-token reply under live sampling at temp 1.0. The number that matters
+here is that the two roles land in the same place, so nothing regressed.
+
+## Weights live in a clean directory, at no disk cost
+
+`~/models/qwen3.8-ablit/` holds the KairicRecipe GGUF and the three sidecars as
+hardlinks into `qwen3.8-ablit-work/`. Same filesystem, so 28 GB of serving
+artifacts cost nothing, and the 54.7 GB bf16 intermediate stays out of the
+serving path.
+
+## The trap that would have leaked 49 GiB
+
+Editing `systemd/llama-swap-kairic.service` in the repo does nothing. The unit
+systemd runs is the copy in `~/.config/systemd/user/`, and it still carried
+
+    ExecStopPost=-/usr/bin/podman rm -f kairic-serve compact-serve
+
+with no `ablit-serve`. Stopping the contract would have left the abliterated
+model resident at 49 GiB, invisible to `ps` and `top` because the weights are in
+GTT. `make kairic-install` is what installs the edit, and it is not implied by
+editing the file. Four reap sites needed the name: the unit, `kairic-down`,
+`stop-all`, and the unit's own copy.
+
+## A test that could not see the thing it was named for
+
+`tests/p04-context.bats` asserted that the client's declared window equals
+CONTEXT/slots -- for `code` only, by name. A second 27B could be declared with
+any window at all and it stayed green. It now discovers roles from the YAML by
+which ones pass `CONTEXT=` to the shared runner, so the set grows by itself.
+Verified red two ways before being accepted: wrong window on `ablit`, and
+`ablit` served but never declared to the client.
+
+## Process note
+
+`make test` was launched to validate a llama-swap config edit and started
+generating sprites, meshes and rigs on the GPU -- roughly half an hour of a
+machine Nathan uses. Killed it and ran the eight suites that can actually
+observe a config change: 28/28. The media CUJs were not re-run, and nothing in
+this change touches them.
+
+Also, `pkill -f 'scratchpad/fake.py'` killed its own shell again -- exit 144,
+third time in this cycle's record. The pattern was in the killing command's own
+command line. Probes now live in a script file so the shell's command line is
+just the path.
+
+# Does the censored 4B compaction worker launder the uncensored 27B's output?
+
+Nathan's question: if `ablit` produces content the stock 4B's alignment
+dislikes, does compaction refuse or sanitise it? The summary silently
+conditions every later turn, so a refusal or omission there is invisible and
+expensive.
+
+Measured (`repl/`-adjacent compact-safety probe): the 4B in summariser role,
+with opencode's own no-refuse summarisation instruction, over four transcripts
+whose assistant turns carry flagged content.
+
+    transcript                  worker refused    flagged detail kept
+    villain monologue (fiction)   no               yes, full
+    lockpick mechanism            no               yes, full
+    authorised phishing pretext   no               yes, link and all
+    benign control                no               yes
+
+Zero refusals, zero laundering. The one `i won't` a marker flagged was inside
+the villain's own dialogue, not the worker declining.
+
+**Why it holds mechanically.** opencode's `compact` role is a summariser with a
+no-refuse instruction, transforming text already in the window rather than
+deciding whether to generate it. The alignment reflex fires hardest on
+generation; summarising existing content is its weak case.
+
+**Scope — this is a floor, not a ceiling.** The probes were refusal-BAIT:
+edgy enough to trip a reflex, benign in fact, no real-world uplift. Content the
+stock 4B would genuinely refuse to *generate* was not tested, and that is
+exactly where a silent refusal in a summary would bite. Not measured on
+purpose.
+
+**The fix if it ever bites.** Abliterate the 4B distill the same way the 27B
+was (huihui-style), swap it in as the `compact` weights. Same runner, same slot,
+no architecture change. Hold off until a laundered summary is actually observed;
+the evidence says it will not appear at normal use.
+
+# Replication readiness for a spin-off repo
+
+Nathan wants to spin the abliteration path into a standalone "inspired by
+Kairic Edge, here is uncensored at the same speed" repo. It is not ready. What
+exists lives as working config plus a development ledger that interleaves the
+~48 answer with the ~35 and ~28 dead ends across 1199 lines.
+
+Gaps, in order of how hard they block a stranger:
+
+    gap                          why it blocks
+    no oracle for outsiders      packer correctness was proven ONLY by byte-
+                                 diffing against jcbtc's published sidecars in
+                                 ~/models/qwen3.8-kairic/. Without Kairic Edge
+                                 purchased, a stranger has no oracle and the
+                                 reverse-engineered quantiser is unvalidatable.
+                                 This is the load-bearing gap and it is honest
+                                 to lead the spin-off with it.
+    packer not packaged          pack_pfs.py + fit scripts live in .necklace/
+                                 repl/, run only inside qwen-convert:c49ebdbd,
+                                 no entrypoint or arg docs.
+    engine images not reproducible  localhost/kairic:v1.1 is the vendor image;
+                                 how to obtain/build the activefpx engine that
+                                 reads sidecars is not written down.
+    no build doc                 the recipe is threaded through abandoned
+                                 approaches; a reader cannot separate them
+                                 without reading all 1199 lines.
+    weight provenance unstated   huihui-ai/Huihui-Qwen3.8-27B-abliterated and
+                                 the quantise-to-recipe step have no standalone
+                                 doc or script.
+
+Honest framing for the spin-off: "here is the packer, and here is how to
+validate it IF you have Kairic Edge to diff against" -- not a clean-room recipe.
+The value is real (a working uncensored 27B at Kairic speed) but its
+correctness proof is not portable to someone without the oracle.

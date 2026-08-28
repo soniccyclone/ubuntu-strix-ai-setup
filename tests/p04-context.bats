@@ -28,22 +28,21 @@ col()  { head -1 "$REC" | tr '\t' '\n' | grep -nx "$1" | cut -d: -f1; }
   [ "$output" = "0" ]
 }
 
-@test "the coding model's declared context equals the per-slot window" {
-  # opencode declares TWO contexts: code at 131072 and compact at 262144. Only
-  # 'code' pairs with the slot count, so a test that scans every declared limit
-  # is satisfied by 'compact' no matter what 'code' says.
-  local ctx slots want got
-  ctx=$(grep -oE '^\s+-e CONTEXT=[0-9]+' "$YAML" | grep -oE '[0-9]+$' | head -1)
+@test "every served model's declared context equals its per-slot window" {
+  # opencode declares a context per model and only some of them pair with the
+  # slot count, so a test that scans every declared limit is satisfied by the
+  # wrong one no matter what the right one says. The pairing is per ROLE.
+  #
+  # Roles are discovered from the YAML rather than listed here: a role is one
+  # that passes CONTEXT= to the shared runner, which is exactly the set whose
+  # window divides across KAIRIC_SLOTS. The previous version read only `code`,
+  # so a second 27B could be added with any window at all and it stayed green.
+  local slots
   slots=$(grep -oE 'KAIRIC_SLOTS:-[0-9]+' "$RUNNER" | grep -oE '[0-9]+$' | head -1)
-  [ -n "$ctx" ] && [ -n "$slots" ]
-  want=$(( ctx / slots ))
-  got=$(python3 -c "
-import json,re,sys
-raw=open('$CLIENT').read()
-raw=re.sub(r'^\s*//.*$','',raw,flags=re.M)
-d=json.loads(raw)
-print(d['provider']['contract']['models']['code']['limit']['context'])")
-  [ "$got" -eq "$want" ]
+  [ -n "$slots" ]
+  run python3 tests/fixtures/context-pairing.py "$YAML" "$CLIENT" "$slots"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
 }
 
 @test "the writeup names the client setting that moves with slots" {

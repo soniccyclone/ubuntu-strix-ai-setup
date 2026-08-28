@@ -128,9 +128,9 @@ fetch "$K/Qwen3.8-27B-Kairic-IU4-GDN-Output.pfs" "$MODELS/qwen3.8-kairic/Qwen3.8
 
 # Compaction model: same qwen35 hybrid family, so its 262144 window is cheap.
 C="https://huggingface.co/empero-ai/Qwen3.8-4B-Distill-GGUF/resolve/main"
-if [ ! -s "$MODELS/qwen3.8-4b/Qwen3.8-4B-Q8_0.gguf" ]; then
-  ok "downloading Qwen3.8-4B-Q8_0.gguf (compaction model, 4.29 GiB)"
-  curl -fL --retry 3 -C - "$C/Qwen3.8-4B-Q8_0.gguf" -o "$MODELS/qwen3.8-4b/Qwen3.8-4B-Q8_0.gguf" \
+if [ ! -s "$MODELS/qwen3.8-4b/Qwen3.8-4B-Q4_K_M.gguf" ]; then
+  ok "downloading Qwen3.8-4B-Q4_K_M.gguf (compaction model, 2.78 GB)"
+  curl -fL --retry 3 -C - "$C/Qwen3.8-4B-Q4_K_M.gguf" -o "$MODELS/qwen3.8-4b/Qwen3.8-4B-Q4_K_M.gguf" \
     || die "compaction model download failed"
 fi
 ok "compaction model present"

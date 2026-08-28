@@ -20,7 +20,7 @@ RestartSec=5
 # enough to free 60 GiB -- a killed llama-swap can leave the containers parented
 # to conmon and still resident. Reap them explicitly on every stop, success or
 # failure, so `stop` always means the memory came back.
-ExecStopPost=-/usr/bin/podman rm -f kairic-serve compact-serve
+ExecStopPost=-/usr/bin/podman rm -f kairic-serve ablit-serve compact-serve
 TimeoutStopSec=45
 
 [Install]
