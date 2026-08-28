@@ -41,6 +41,11 @@ wait_health(){ for _ in $(seq 1 240); do
 
 # --- ROCmI4, at the publisher's own launch flags ---------------------------
 start_rocmi4(){
+  # Defaults are cafonez's published flags; each is overridable so the gap
+  # against Kairic can be attributed rather than guessed at.
+  local NMAX="${I4_NMAX:-16}" PMIN="${I4_PMIN:-0.60}"
+  local BATCH="${I4_BATCH:-512}" UBATCH="${I4_UBATCH:-256}"
+  local CACHE=(); [ -n "${I4_CACHE:-}" ] && CACHE=(--cache-prompt --cache-ram "$I4_CACHE")
   podman run -d --rm --name "$CTR" \
     --device=/dev/kfd --device=/dev/dri --group-add keep-groups \
     --network=host -v "$MODELS":/models:z \
@@ -49,13 +54,13 @@ start_rocmi4(){
     -m $I4/Qwen3.8-27B-Q4_0_ROCMI4.gguf \
     --host 127.0.0.1 --port "$PORT" --alias qwen38-27b-rocmi4 \
     -dev ROCm0 -ngl 999 -np 1 -c 262144 \
-    -b 512 -ub 256 -t 16 -tb 32 -fa on \
+    -b "$BATCH" -ub "$UBATCH" -t 16 -tb 32 -fa on "${CACHE[@]}" \
     -ctk f16 -ctv f16 --jinja \
     --spec-type draft-mtp --spec-mtp-strict-qwen \
     --spec-draft-device ROCm0 --spec-draft-ngl all \
     --spec-draft-type-k f16 --spec-draft-type-v f16 \
-    --spec-draft-n-max 16 --spec-draft-n-min 0 \
-    --spec-draft-p-min 0.60 --spec-draft-backend-sampling \
+    --spec-draft-n-max "$NMAX" --spec-draft-n-min 0 \
+    --spec-draft-p-min "$PMIN" --spec-draft-backend-sampling \
     --reasoning off --reasoning-format deepseek >/dev/null
 }
 
@@ -110,6 +115,6 @@ print(f\"per-stream {d['per_stream_tps']:>6} (+/-{d['per_stream_spread_pct']}%) 
 
 [ -s "$OUT" ] || printf 'arm\tper_stream_tps\tper_stream_spread_pct\taggregate_tps\taggregate_spread_pct\tdraft_n\tdraft_accept_pct\tgtt_gib\tw4a4\tprovenance\n' > "$OUT"
 echo "GTT before: $(gtt) GiB"
-arm "rocmi4-pub"  start_rocmi4
-arm "kairic-ref"  start_kairic
+arm "rocmi4-${I4_CACHE:+c}${I4_BATCH:+b}${I4_NMAX:+s}" start_rocmi4
+[ "${ARMS_ONLY:-}" = "rocmi4" ] || arm "kairic-ref" start_kairic
 echo; echo "wrote $OUT"

@@ -209,3 +209,45 @@ itself mid-write and left the replacement script truncated. Exit 144 with a
 half-written file and a still-running orphan is a confusing state to debug at
 one in the morning. Match on a pid, or on something the killing command does not
 itself contain.
+
+## ROCmI4 measured, and it does not reproduce its card
+
+At cafonez's own published launch flags, on the harness the last cycle
+validated, one stream, HumanEval pool of eight, five repeats:
+
+    rocmi4-pub   per-stream 34.95 ±0.6%   aggregate 29.20 ±0.9%   accept 74.6%   36 GiB
+    kairic-ref   per-stream 48.75 ±6.5%   aggregate 44.35 ±8.7%   accept 72.8%   47 GiB
+
+ROCmI4 is 28% slower than Kairic here, and 21% below the 44.39 tok/s its own
+card reports for full HumanEval on this same silicon. The ±0.6% spread means
+that is not noise.
+
+**The fast path was genuinely on**, so this is not the silently-OFF build the
+default flag invites:
+
+    ROCmI4 W4A4: enabled for device 0 (lossy prompt-processing path)
+    Qwen strict MTP: boundary-safe multi-row verification ... for exact greedy output
+    draft acceptance = 0.776, mean acceptance length 10.35 of a 16-token window
+
+Acceptance is *better* than Kairic's, so speculation is not the deficiency.
+
+**And the comparison was unfair, in a direction I set up without noticing.**
+Kairic's runner passes `--cache-prompt --cache-idle-slots --cache-ram 16384`.
+cafonez's launch script passes none of them, and I used his flags verbatim. The
+harness runs a warming pass and then five repeats of the same eight tasks —
+exactly the workload a prompt cache exists to exploit. Kairic reused its
+prefill across every repeat; ROCmI4 recomputed it every time.
+
+That single difference could account for the whole gap, and it sits alongside
+three others introduced at once: batch 512/256 against 2048/512, draft window 16
+against 4, and p-min 0.60 against 0.0. Four variables, one number.
+
+`repl/tune-rocmi4.sh` isolates them — cache alone, cache plus batching, cache
+plus Kairic's speculation settings, and everything matched. The interesting
+answer is not which engine wins a bundled comparison; it is which of those four
+differences the 14 tok/s actually lives in.
+
+**Also worth carrying forward:** the W4A4 banner says *lossy prompt-processing
+path*. That is 4-bit activations, not just 4-bit weights, and it is a quality
+claim the speed table cannot see. It strengthens the spec's open question about
+whether this cycle measures capability or only throughput.
