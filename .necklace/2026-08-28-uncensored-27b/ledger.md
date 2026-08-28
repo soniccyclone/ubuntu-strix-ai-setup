@@ -134,3 +134,52 @@ an inference and the conversion is where it would actually be lost.
 right way: ROCmI4 is 14.5 GB against Kairic's 16.6 GB GGUF plus 11.4 GB of
 sidecars, 28.0 GB total. Roughly half the resident memory for a model claiming
 the same speed.
+
+## The build flag that would have wasted the whole probe
+
+`GGML_HIP_ROCMI4_W4A4` **defaults to OFF**. From the fork's README, and the
+reason it matters:
+
+> The server prints `ROCmI4 W4A4: enabled` when the accelerated path is active.
+
+Without the flag the engine still builds, still loads a `Q4_0_ROCMI4` model, and
+still answers. It simply never takes the accelerated path. The result would have
+been a working server measuring somewhere near the card's non-speculative 13.8
+tok/s, and the obvious reading of that is "ROCmI4 is slow here" rather than "the
+build was wrong". A whole probe answered backwards by a default.
+
+So the startup banner is checked before any number is believed, rather than the
+build flags being trusted.
+
+## What the publisher's own launch script settles
+
+`launch-rocmi4-mtp.sh` ships in the model repo, which removes a lot of guessing.
+Its flags differ from this repository's Kairic runner in ways that matter:
+
+    -np 1  -c 262144           same as Kairic now runs after the slot change
+    -b 512 -ub 256             Kairic uses 2048 / 512
+    --spec-draft-n-max 16      Kairic uses 4
+    --spec-draft-p-min 0.60    Kairic uses 0.0
+    --spec-mtp-strict-qwen     no Kairic equivalent
+    (no --kairic-edge)         that switch is the other fork's
+
+`ROCMFPX_COMMIT.txt` pins `c49ebdbd5c9f01ec242369f9e7f7967855f80cba`, matching
+the README and the fork's current default-branch head.
+
+**A comparison caveat to carry into the CUJ.** The draft window differs by 4x
+between the two runners, and last cycle established that speculation settings
+move throughput a long way. So an honest Kairic-versus-ROCmI4 number has to say
+whether it is comparing *each engine at its publisher's recommended settings* or
+*both at matched settings*. Those answer different questions and only the first
+is what either publisher measured.
+
+## Staying off the existing setup
+
+The engine is a new image, `localhost/rocmi4:c49ebdbd`, built from a
+Containerfile that lives in this cycle's `repl/` rather than in `harness/`.
+`harness/Containerfile.rocmfpx-hip` keeps its `0fc9568` pin: it predates ROCmI4,
+and it is what the published ROCmFP4 arm was measured on, so moving it would
+quietly change a number already in `bench/`.
+
+Weights go to `~/models/qwen3.8-rocmi4/`, beside `qwen3.8-kairic/` and not into
+it. Nothing in `config/`, `systemd/` or the installed unit is touched.
