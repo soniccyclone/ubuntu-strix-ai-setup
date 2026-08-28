@@ -445,3 +445,44 @@ wake signal that has worked.
 
 **Constraint unchanged:** nothing touches the Kairic setup. New model directory,
 new engine image, `harness/Containerfile.rocmfpx-hip` keeps its 0fc9568 pin.
+
+## Step 1 done: both abort conditions cleared
+
+**Kairic's precision map, extracted** (`repl/extract-precision-map.py`,
+`repl/kairic-precision-map.json`). 866 tensors: 454 ROCmFP4, 360 F32 norms and
+biases, 50 promoted to Q6_0_ROCMFPX, plus an Q8_0 output head and a Q6_K
+embedding table.
+
+The fifty are placed by depth, not by kind:
+
+    ssm_alpha / ssm_beta / ssm_out   layers 48-62   (12 each)
+    attn_output / attn_v             layers 51-63   (4 each)
+    ffn_down                         layers 58-63   (6)
+    output.weight                    Q8_0
+    token_embd.weight                Q6_K
+
+Late-layer promotion, deepest for the recurrent-state paths. Error introduced
+near the output has no remaining layers to absorb it, and in a recurrent path it
+compounds across timesteps as well as depth. That is a considered recipe and it
+was sitting in a local file the whole time.
+
+**Gate 1 — the quantiser accepts per-tensor assignment.** Better than hoped:
+
+    --tensor-type tensor_name=ggml_type
+    --tensor-type-file tensor_types.txt
+    --output-tensor-type / --token-embedding-type
+
+The file form exists precisely for a map this size, so the 506 quantised entries
+can be handed over wholesale rather than as 506 flags.
+
+**Gate 2 — the abliterated weights correspond.** 1199 safetensors tensors,
+layers 0-63, 48 `linear_attn` blocks matching the 48 Gated DeltaNet layers
+Kairic promotes, and MTP tensors present.
+
+One thing step 2 must still verify rather than assume: the safetensors names are
+`model.language_model.layers.N.linear_attn.*` while the map is keyed on GGUF
+names like `blk.N.ssm_alpha.weight`. The converter performs that mapping, so the
+map applies to the *converted* GGUF, not to the source. If the converter names
+anything differently than Kairic's build did, the map will not line up and the
+mismatch has to be caught by comparing name sets before quantising, not by
+noticing bad output afterwards.
