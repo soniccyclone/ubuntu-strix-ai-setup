@@ -711,3 +711,48 @@ the recipe build, and produced by public tooling end to end.
 The packer buys 1.37x on speed and, on this evidence, no quality -- Kairic's own
 recipe scores the same as ROCmI4 within noise, so there is no reason to expect
 its sidecars to score better.
+
+## Reverse engineering: further and faster than estimated, stuck on addressing
+
+Nathan pushed back that the packer should not be hard and that it must be in the
+repo somewhere. He was right on the first count and the second is now settled by
+an exhaustive rather than sampled search.
+
+**Search, completed properly.** All 44 branches and 13 tags of `ciru-ai/ROCmFPX`
+plus all 21 branches of `charlie12345/ROCmFPX`, grepped for `PFSIU4`, `PFSIDE1`
+and `promptforge`. The magic appears only in `promptforge.cu`, the reader, and
+only on the kairic and activefpx release refs. Nothing writes it anywhere. Three
+earlier searches were partial; this one is not.
+
+**Progress in about twenty minutes**, against an estimate of days to weeks:
+
+    container format       solved -- header and all 384 entries parse
+    layout arithmetic      [20][544][32][64] uint32 = 89,128,960 bytes,
+                           exactly the entry length
+    code encoding          signed 4-bit, observed range [-8, 7]
+    scales                 per-row f32, plausible magnitudes
+    sums                   per-row i32, read cleanly
+
+Note the scales entry is 34,816 floats, one per row -- not `[segment][N]` as the
+struct comment in the header suggests. The comment describes the runtime view;
+the file stores one scale per row.
+
+**Where it stops: row-to-lane addressing.** Assuming row `r` occupies lane
+`r % 64` of block `r / 64` produces sums that do not match the stored ones --
+6 of 64 rows match by coincidence, and 61 of the 64 stored sums are distinct, so
+a permutation would have resolved almost all of them if one existed. Nibble
+order and segment axis were both tested and neither is the variable.
+
+The data is laid out for `v_wmma_i32_16x16x16_iu4`, whose register-to-lane
+mapping is an instruction property, not a convention. Guessing at it is the
+wrong method.
+
+**The next move is reading, not guessing.** `promptforge_iu4.cuh` contains the
+GEMM kernel that indexes this data; only its struct comment was read, never the
+kernel body. That code states the mapping exactly, and with it the sums become
+checkable, which then validates the whole chain against a known-good file.
+
+Revised estimate: the container is done. What remains is one kernel read, then
+matching the quantisation arithmetic against an oracle that already exists on
+disk. That is a smaller job than "days to weeks" implied, and the earlier
+estimate was made without attempting any of it.
