@@ -183,3 +183,29 @@ quietly change a number already in `bench/`.
 
 Weights go to `~/models/qwen3.8-rocmi4/`, beside `qwen3.8-kairic/` and not into
 it. Nothing in `config/`, `systemd/` or the installed unit is touched.
+
+## HuggingFace throttles one connection, not the link
+
+The model download settled at ~1.05 MB/s with a 3h43m estimate, which read like
+the concurrent image build saturating the network. It was not. A second
+connection pulling a 64 MB range finished in 3.72 s — **17 MB/s** — while the
+first was still crawling.
+
+So it is per-connection shaping, and the fix is ranged parallel fetch.
+`repl/`-adjacent `pardl.sh` splits into N parts, fetches them concurrently, and
+verifies the result against the publisher's own `checksums.sha256` before
+declaring success. A torn or short chunk has to fail loudly rather than produce
+a GGUF that loads and misbehaves.
+
+**This matters more later than now.** The abliterated safetensors are 73.8 GB.
+At 1 MB/s that is 20 hours; at parallel rates it is under an hour. Whoever runs
+the conversion stage should not discover that by starting a serial download and
+going to bed.
+
+**And a self-inflicted one worth writing down.** Killing the slow transfer with
+`pkill -f 'Qwen3.8-27B-Q4_0_ROCMI4.gguf'` matched the pattern against *its own
+shell's* command line, which contained that string, so the command killed
+itself mid-write and left the replacement script truncated. Exit 144 with a
+half-written file and a still-running orphan is a confusing state to debug at
+one in the morning. Match on a pid, or on something the killing command does not
+itself contain.
