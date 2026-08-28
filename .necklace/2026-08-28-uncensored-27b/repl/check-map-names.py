@@ -72,12 +72,24 @@ def main():
         print("  the promoted set is the whole point of the recipe; refusing to proceed")
         return 1
 
-    # llama-quantize wants lowercase ggml type names.
+    # EVERY quantised tensor is pinned, not just the promoted fifty.
+    #
+    # Naming only the fifty and passing Q4_0_ROCMFP4 as the base ftype does NOT
+    # give Kairic's recipe: llama-quantize applies its own per-tensor heuristics
+    # on top of the base type, promoting attention-V and FFN-down tensors to
+    # Q5_K/Q6_K on its own. A first run produced 287 ROCmFP4, 123 Q5_K and 44
+    # Q6_K against the intended 454/0/0 -- an 18.55 GB file where Kairic's is
+    # 16.6 GB, and a measurement of something other than the recipe.
+    #
+    # Pinning all 506 leaves the tool no discretion.
     with open(ttfile, "w") as fh:
         for k, v in sorted(matched.items()):
-            if v == "Q6_0_ROCMFPX":
-                fh.write(f"{k}=q6_0_rocmfpx\n")
-    print(f"  wrote {ttfile} with {len(promoted)} overrides")
+            fh.write(f"{k}={v.lower()}\n")
+    import collections as _c
+    dist = _c.Counter(v for v in matched.values())
+    print(f"  wrote {ttfile} pinning all {len(matched)} quantised tensors")
+    for k, v in dist.most_common():
+        print(f"      {k:<20} {v:>5}")
     return 0
 
 

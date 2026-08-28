@@ -503,3 +503,46 @@ identical mistake with the model filename. The fetch survived only because its
 pattern differed.
 
 Kill by pid. `chain.realpid` now holds it.
+
+## The recipe did not apply, and the gate that should have caught it passed
+
+The pipeline ran clean end to end. Conversion kept MTP, the name check matched
+all 506 quantised tensors including all 50 promoted, and quantisation produced a
+loadable model. Every stage reported success.
+
+The output is not Kairic's recipe:
+
+                    got    wanted
+    F32             360    360
+    Q4_0_ROCMFP4    287    454
+    type_13 (Q5_K)  123      0
+    Q6_0_ROCMFPX     50     50
+    Q6_K             44      1
+    Q8_0              2      1
+
+167 tensors landed at higher precision than intended — 18.55 GB against
+Kairic's 16.6 GB.
+
+**Cause.** `llama-quantize` applies its own per-tensor heuristics on top of the
+base ftype, promoting attention-V and FFN-down tensors to Q5_K/Q6_K by default.
+The override file named only the fifty promoted tensors on the assumption that
+passing `Q4_0_ROCMFP4` as the base type would settle the other 456. It does not;
+the base type is a starting point the tool then second-guesses.
+
+**Why the gate missed it.** `check-map-names.py` verified that every name in the
+map exists in the converted file — a *name* check, which is what it was built
+for and what it says it does. It never verified the *types that came out*. The
+verification step immediately after does print the type distribution, and that
+is where the discrepancy showed. So the information was produced; nothing was
+asserting on it.
+
+A gate that checks the input to a step and not its output will pass a step that
+silently does something else. The fix is not a better name check — it is to pin
+all 506 tensors so the tool has no discretion, and to fail on the type
+distribution rather than merely print it.
+
+**Consequence for the measurement now running.** It is a higher-precision
+variant, not the recipe. Its number is still worth keeping — it brackets from
+above, and if it lands near Kairic's 48 while carrying more bits, that is itself
+informative. But it does not answer the question the step was designed for and
+must not be recorded as if it did.
