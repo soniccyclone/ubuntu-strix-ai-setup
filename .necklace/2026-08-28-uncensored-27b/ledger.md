@@ -802,3 +802,135 @@ then lets the scale rule be fitted against the GGUF weights.
 
 Everything needed to resume is in this section plus
 `repl/kairic-precision-map.json`. The oracle is `~/models/qwen3.8-kairic/`.
+
+---
+
+# HANDOFF: build the IU4 sidecar packer
+
+Self-contained. Everything below is actionable without reading the rest of this
+ledger, though the sections above give the reasoning.
+
+## Goal
+
+Produce `.pfs` sidecars for abliterated Qwen3.8-27B so it serves at Kairic's
+~48 tok/s instead of the ~35 currently achievable. Worth 1.37x. No published
+packer exists — confirmed across all 44 branches and 13 tags of
+`ciru-ai/ROCmFPX` and all 21 branches of `charlie12345/ROCmFPX`, where the
+`PFSIU4`/`PFSIDE1` magic appears only in the reader, `promptforge.cu`.
+
+## What already exists on this machine
+
+    ~/models/qwen3.8-kairic/                     THE ORACLE — known-good sidecars
+      Qwen3.8-27B-IU4-Kairic-Edge.gguf           source weights (ROCmFP4 + Q6)
+      Qwen3.8-27B-Kairic-IU4-FFN.pfs             8,576,856,064 bytes
+      Qwen3.8-27B-Kairic-IU4-GDN.pfs             2,019,569,664
+      Qwen3.8-27B-Kairic-IU4-GDN-Output.pfs        756,953,088
+
+    ~/models/qwen3.8-ablit-work/
+      ablit-bf16.gguf                            abliterated, 54.7 GB, MTP kept
+      Qwen3.8-27B-ablit-ROCMI4.gguf              ~35 tok/s build, 91.5% HumanEval
+      Qwen3.8-27B-ablit-KairicRecipe.gguf        ~28 tok/s build, 92.7%
+
+    localhost/rocmi4:c49ebdbd                    engine, W4A4 ON, has llama-quantize
+    localhost/qwen-convert:c49ebdbd              HF -> GGUF converter
+
+Engine source for reading: clone `charlie12345/ROCmFPX` at `c49ebdbd`, or the
+kairic release branch of `ciru-ai/ROCmFPX` for `promptforge.cu` and
+`promptforge_iu4.cuh` (those two files are only on the kairic/activefpx refs).
+
+## Already solved — do not redo
+
+- **Container.** `PFSIU4F`, 64-byte header `<8sIIIIQQQQQ` = magic, version,
+  header_bytes, entry_bytes, entry_count, table_offset, table_bytes,
+  data_offset, file_bytes, reserved. 384 entries of 64 bytes,
+  `<HHBBHIIQQ` + 32 reserved = layer, kind, dtype, rank, reserved0, rows, cols,
+  offset, length. Offsets contiguous from `data_offset`, ending exactly at
+  `file_bytes`.
+- **Entry order**, six per layer for 64 layers: GATE_W4 (kind 10, S4, rank 2,
+  rows 2*17408, cols 5120), GATE_W4_SCALE (11, F32, per row),
+  GATE_W4_SUM (12, I32, per row), DOWN_W4 (13, S4, rows 5120, cols 17408),
+  DOWN_W4_SCALE (14), DOWN_W4_SUM (15).
+- **Weight layout** `[N/64][K/8][64]` uint32, taken from the kernel:
+  `index = (ntile * words_per_k + chunk + word) * kTileN + nlocal`, kTileN 64.
+  **No segment axis**, despite the `[segment][N/64][K/segments/8][64]` comment
+  on `packed_matrix`. Verified: 544 x 640 x 64 x 4 = 89,128,960 = the entry
+  length exactly.
+- **Codes** are signed 4-bit, eight per uint32, observed range [-8, 7].
+- **Hadamard** is deterministic, not random: `hadamard_sign(index, seed)` is a
+  bit-mixing hash, block size 1024, seeds `PF_GATE_HADAMARD_SEED = 0xA511E9B3`
+  and `PF_DOWN_HADAMARD_SEED = 0x63D83595`. Applied to activations at runtime,
+  so weights must be pre-rotated to match.
+- **Activation quantisation**, read from `pack_input_u4_hadamard` — asymmetric
+  U4, per segment per row: `scale = (hi-lo)/15`,
+  `zero = clamp(round(-lo/scale), 0, 15)`,
+  `code = clamp(round(v/scale) + zero, 0, 15)`.
+- **Sum purpose:** cancels the activation zero-point in
+  `sum_k (a_k - z) w_k = sum_k a_k w_k - z sum_k w_k`, so it should be the sum
+  of the row's signed codes.
+
+## Step 1 — recover the WMMA B-fragment swizzle  [BLOCKING]
+
+`nlocal` in the index expression is an LDS slot, not a row. The load from
+`w_lds` into the WMMA call applies the B-fragment mapping of
+`v_wmma_i32_16x16x16_iu4` on top.
+
+Read `promptforge_iu4.cuh` around lines 640-700 — the `w_lds` to fragment load
+feeding the WMMA intrinsic — and recover slot-to-row.
+
+*Test:* assume `row = ntile*64 + nlocal`, sum the row's signed codes, compare
+against the stored `GATE_W4_SUM`. Currently gives right-magnitude values and
+zero matches, which is the signature of a within-tile permutation. Correct
+mapping makes them match.
+
+*Why this first:* the stored sums are then a per-row checksum over the whole
+published file — 34,816 independent checks on layer 0 alone. Nothing downstream
+can be validated until addressing is right, and everything downstream is cheap
+once it is.
+
+## Step 2 — fit the weight scale rule
+
+Weights are signed, so not the activation's asymmetric rule. Likely
+`scale = max|w| / 7` or `/8` over the row, possibly after the Hadamard.
+
+*Method:* dequantise a row from the Kairic GGUF, apply the Hadamard with the
+gate seed, and solve for the scale that reproduces the stored codes. The stored
+per-row f32 scale is the answer to check against — this is a fit with a known
+target, not a search.
+
+*Watch for:* rounding mode (`__float2int_rn` is round-half-to-even) and whether
+the Hadamard is applied before or after scale selection.
+
+## Step 3 — the other two sidecar formats
+
+Only `load_iu4_sidecar` (FFN) has been read. `load_gdn_iu4_sidecar` and the
+GDN-output loader are separate formats with their own entry kinds — expect
+`PF_GDN_OUTPUT_W4` = 40, `_SCALE` = 41, `_SUM` = 42 among them — and their own
+validators in `promptforge.cu` around lines 1188-1400.
+
+The GDN sidecar is 2.0 GB over 48 layers (the Gated DeltaNet layers), the
+GDN-output 757 MB. Same approach: read the loader, read the consuming kernel,
+validate against the published file.
+
+## Validation, in order
+
+1. Pack **stock** Qwen3.8-27B from Kairic's own GGUF and byte-diff against
+   `Qwen3.8-27B-Kairic-IU4-FFN.pfs`. Exact match or the diff localises to a
+   layer and entry.
+2. Repeat for GDN and GDN-output.
+3. Only then pack the abliterated weights.
+4. Serve and measure with `tools/concbench.py` — one stream, HumanEval pool,
+   five repeats, spread reported. Target ~48 tok/s against a 13% noise floor.
+5. Re-run `tools/humaneval_score.py` for pass@1; the abliterated ROCmI4 build
+   scores 91.5% and anything materially below that is a regression.
+
+## Constraints
+
+- **Do not modify the Kairic setup.** `config/llama-swap-kairic.yaml`,
+  `config/run-kairic-serve.sh`, the installed systemd unit and
+  `localhost/kairic:v1.1` are read-only. It must still start and answer when
+  this work pauses.
+- `harness/Containerfile.rocmfpx-hip` keeps its `0fc9568` pin — it predates
+  ROCmI4 and is what the published ROCmFP4 comparison arm was measured on.
+- Work on branch `necklace/uncensored-27b`, not master.
+- Background-task notifications are the only reliable wake signal on this setup;
+  a session cron job was registered and fired zero times across five idle hours.
