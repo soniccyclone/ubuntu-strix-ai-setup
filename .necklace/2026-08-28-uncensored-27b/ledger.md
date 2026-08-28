@@ -348,3 +348,56 @@ offered in place of a two-second `stat`.
 time estimate never computed. Eight tasks, six passes, 2048 tokens, at measured
 rates, is 47 minutes for one arm. The arithmetic fits on one line and was worth
 doing before starting, not after being asked.
+
+## What Kairic Edge actually is — the earlier characterisation was wrong
+
+Nathan pushed back on the claim that ROCmI4 is "the same W4A4 IU4 arithmetic" as
+Kairic, delivered differently. Reading the two GGUFs settles it, and the claim
+was wrong in both directions.
+
+    Kairic  type 100 x454   type 102 x50   Q8_0 x1   Q6_K x1   F32 x360
+    ROCmI4  type 108 x506                                       F32 x360
+
+    GGML_TYPE_Q4_0_ROCMFP4 = 100
+    GGML_TYPE_Q6_0_ROCMFPX = 102
+    GGML_TYPE_Q4_0_ROCMI4  = 108
+
+**Kairic's GGUF contains no IU4 at all.** It is ROCmFP4 with fifty tensors
+promoted to a 6-bit type. The IU4 lives only in the sidecars, as a compute lane
+for qualified shapes — which is exactly what the engine's own doc said
+("the GGUF remains the source of model behavior") and which I read past.
+
+The fifty are not arbitrary:
+
+    ssm_alpha x12   ssm_beta x12   ssm_out x12     recurrent state paths
+    ffn_down   x6   attn_output x4  attn_v   x4    residual-stream writers
+
+Six-bit precisely where quantisation error accumulates across timesteps or
+propagates into the residual stream, four-bit everywhere else. That is a
+calibrated recipe, not a default.
+
+ROCmI4 by contrast is uniform four-bit weights *and* four-bit activations, which
+its own banner calls a "lossy prompt-processing path". The two designs share the
+hardware instruction family and nothing else.
+
+**This inverts what looked replicable.** The assumption had been: base is
+commodity, sidecars are the secret. In fact the base is a tuned mixed-precision
+assignment and both of its types are public quantise targets — and the
+assignment itself is readable tensor-by-tensor out of the GGUF already on this
+disk. Only the sidecars are unpublished.
+
+Three measured points now bracket the unknown:
+
+    ROCmFP4 base alone            ~22   (previous cycle, matched settings)
+    uniform ROCmI4                ~35   (this cycle, five configurations)
+    ROCmFP4/Q6 base + sidecars     ~48   (Kairic as shipped)
+
+Nobody has measured a mixed-precision base *without* sidecars. That single
+number decides the whole plan: if it lands near 45, the sidecars are worth
+little and an uncensored build is a weekend. If it lands near 25, the sidecars
+carry the format and the packer is the only route to Kairic-class speed.
+
+**The process failure.** The tensor types were readable in ninety seconds with a
+struct-unpacking loop and no dependencies. Instead the two model cards were
+compared, both say "IU4", and a conclusion was drawn from marketing copy about
+files sitting locally. Every wrong turn this cycle has that shape.
