@@ -251,3 +251,45 @@ differences the 14 tok/s actually lives in.
 path*. That is 4-bit activations, not just 4-bit weights, and it is a quality
 claim the speed table cannot see. It strengthens the spec's open question about
 whether this cycle measures capability or only throughput.
+
+## The cache hypothesis was wrong, and so was the whole framing
+
+`repl/tune-rocmi4.sh`, four arms isolating the four differences:
+
+    published flags        34.95 ±0.6%   accept 74.6
+    + prompt cache         34.70 ±4.0%   accept 74.6
+    + cache + big batch    35.11 ±0.2%   accept 74.6
+    + cache + kairic spec  30.73 ±0.5%   accept 96.1
+    + all matched          30.58 ±3.9%   accept 96.1
+    kairic reference       48.75 ±6.5%   accept 72.8
+
+The prompt cache explains none of it. Neither does batching. Both land inside
+the noise of the unmodified arm.
+
+Matching Kairic's speculation settings makes ROCmI4 **worse** — 30.73 against
+34.95 — while raising acceptance from 74.6% to 96.1%. That inversion is the
+useful part: a four-token draft accepted 96% of the time yields fewer tokens per
+verification cycle than a sixteen-token draft accepted 75% of the time.
+Acceptance rate on its own is not a proxy for throughput, and reading it as one
+would have pointed at exactly the wrong setting.
+
+**ROCmI4 caps near 35 tok/s here under every configuration tried**, against
+Kairic's 48.75 and its own card's 44.39. That is a property of the format on
+this machine, not of how it was invoked.
+
+I had proposed the cache as the likely explanation with some confidence, on the
+strength of noticing a real asymmetry in the harness. The asymmetry was real and
+the inference from it was wrong; the measurement cost twenty minutes and settled
+what argument could not.
+
+## What remains untested about the card's claim
+
+Ours is a pool of eight HumanEval tasks with roughly 162-token completions. The
+card reports 44.39 for "full HumanEval". Speculation amortises its setup over
+the length of a generation, so short completions are the regime where a
+sixteen-token draft window pays worst. Longer generations are the one plausible
+explanation left for the gap between 34.95 and 44.39 that is not simply "it does
+not reproduce".
+
+That is worth one arm before the format is written off, because the uncensored
+plan rides on it.
