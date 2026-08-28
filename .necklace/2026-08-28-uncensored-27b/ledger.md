@@ -1319,3 +1319,34 @@ five transcripts), not enough to put a tight confidence interval on the rate.
 (3.16 GB) and Q6_K (3.56 GB) between Q4_K_M (2.78) and Q8_0 (4.61). If losing
 rejected-alternatives in compaction proves annoying in use, Q6_K is the cheap
 step back up, and it can be measured on this same harness in minutes.
+
+# Correction: an abliterated 4B distill DOES exist at Q8_0, and it is now the worker
+
+I claimed no abliterated Q6_K/Q8_0 of this 4B distill existed and inferred it
+from three repos without searching. Wrong. A proper HF search found
+`mradermacher/Qwen3.5-4B-EmperoAI-Qwen3.8-Distill-Heretic-Abliterated-GGUF`
+carrying the full quant ladder -- Q2_K through Q8_0 including Q6_K -- of
+Heretic-abliterated empero-ai distill, the same base as the censored worker.
+Refusals 6/100 against the base's 99/100.
+
+Nathan's push settled the tier: Q8_0 is measured-good (53/53 fact retention),
+an abliterated Q8_0 exists, so there is no reason to introduce Q6_K as a fresh
+unknown. The compaction worker is now
+`Qwen3.8-4B-Distill-abliterated-Q8_0.gguf` (4.48 GB, sha pinned in setup).
+
+Confirmed uncensored by direct comparison (`repl/refusal-compare.sh`): asked to
+explain lockpicking, the censored Q8 prepends a "Legal & Ethical Note ...
+licensed locksmiths" gate; the abliterated Q8 goes straight to "Step 1". Both
+still summarise flagged content without refusing, which was never the failure --
+the abliteration removes the possibility rather than trusting the measured floor.
+
+Loads through the contract, answers, reasoning off, no tag leak, 20 GiB.
+
+The whole contract is now uncensored end to end: ablit 27B for work, abliterated
+4B for compaction. MTP is irrelevant to the compaction role (no --spec-type), so
+the non-MTP ladder was the right source.
+
+Process: I under-searched and asserted a negative from a sample, twice in one
+exchange (Q6_K, then Q8_0). The fix is the same each time -- query the index,
+do not infer absence from the first few results. Same failure the 27B cycle
+recorded against grep patterns.

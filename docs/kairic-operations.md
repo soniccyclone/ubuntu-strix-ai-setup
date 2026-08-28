@@ -24,7 +24,7 @@ snapshot. The API is plain OpenAI-compatible: `/v1/chat/completions`,
 | role | model | serves |
 | --- | --- | --- |
 | `code` | Qwen3.8-27B IU4 Kairic Edge | your actual work |
-| `compact` | Qwen3.8-4B Q4_K_M | compaction, titles, summaries |
+| `compact` | Qwen3.8-4B-Distill abliterated Q8_0 | compaction, titles, summaries |
 
 They are separate models, not two views of one. Nothing is shared between them —
 a KV cache entry is the projection *specific weights* produced, so the 27B's

@@ -122,15 +122,28 @@ models:
     aliases: ["ablit", "uncensored", "claude-opus-4-1"]
     checkEndpoint: /health
 
-  # Qwen3.8-4B-Distill Q4_K_M. Same qwen35 hybrid architecture as the 27B, so its
-  # 262144 window is cheap for the same reason: most blocks are Gated DeltaNet
-  # with constant state.
+  # Qwen3.8-4B-Distill, ABLITERATED, Q8_0. Same qwen35 hybrid architecture as the
+  # 27B, so its 262144 window is cheap for the same reason: most blocks are Gated
+  # DeltaNet with constant state.
   #
-  # Q4_K_M, downloaded from empero-ai's GGUF repo. It was Q8_0 for a while on a
-  # buy-quality-where-mistakes-are-invisible argument that was never actually
-  # weighed against the cost; no quality regression at Q4 has been measured, and
-  # if one shows up the same repo ships Q5_K_M, Q6_K and Q8_0 to move back up.
-  # 2.78 GB against Q8_0's 4.61.
+  # Abliterated to match the ablit 27B: the whole contract is uncensored or none
+  # of it is, and the compaction worker sees every transcript the 27B produces.
+  # A censored summariser did not refuse or launder flagged content in testing
+  # (repl/compact-safety), but the failure it could cause -- silently dropping or
+  # moralising content in a summary that then conditions every later turn -- is
+  # invisible, so this removes the possibility rather than trusting the measured
+  # floor.
+  #
+  # Q8_0, not a lower quant, and this was measured, not assumed. repl/measure-
+  # quant scored fact retention of the censored 4B at Q8_0 (53/53) vs Q4_K_M
+  # (51/53): Q4 compressed away a rejected alternative and its rationale, which
+  # is exactly the road-not-taken a compaction handoff exists to preserve. So the
+  # tier that keeps that is the one to run.
+  #
+  # Source: mradermacher's Heretic-abliterated GGUF of empero-ai's distill,
+  # 6/100 refusals against the base's 99/100. The 'Qwen3.5' in the upstream name
+  # is the arch id, not a version regression. MTP is absent and does not matter:
+  # the compact role passes no --spec-type, so it never speculates. 4.48 GB.
   #
   # REASONING: off, so the 4B never generates thoughts -- compaction wants speed
   # and its output is a summary, not an argument. But the FORMAT is `deepseek`,
@@ -156,7 +169,7 @@ models:
       --entrypoint /engine/llama-server
       -e HIP_VISIBLE_DEVICES=0
       localhost/kairic:v1.1
-      -m /models/qwen3.8-4b/Qwen3.8-4B-Q4_K_M.gguf
+      -m /models/qwen3.8-4b/Qwen3.8-4B-Distill-abliterated-Q8_0.gguf
       --alias compact --host 127.0.0.1 --port ${PORT}
       --jinja -dev ROCm0 -ngl 999 -c 262144 -fa on
       -ctk f16 -ctv f16 --no-warmup

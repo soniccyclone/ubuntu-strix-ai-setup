@@ -126,13 +126,14 @@ fetch "$K/Qwen3.8-27B-Kairic-IU4-FFN.pfs"        "$MODELS/qwen3.8-kairic/Qwen3.8
 fetch "$K/Qwen3.8-27B-Kairic-IU4-GDN.pfs"        "$MODELS/qwen3.8-kairic/Qwen3.8-27B-Kairic-IU4-GDN.pfs"        82f931316f1c895da104915dec4697163808d06f0e6b2dc027cee7aa3afc0f0e
 fetch "$K/Qwen3.8-27B-Kairic-IU4-GDN-Output.pfs" "$MODELS/qwen3.8-kairic/Qwen3.8-27B-Kairic-IU4-GDN-Output.pfs" 3b07e7b176559e4402924ba0c368532fa6f02118a33c71e70974c809bf6208a3
 
-# Compaction model: same qwen35 hybrid family, so its 262144 window is cheap.
-C="https://huggingface.co/empero-ai/Qwen3.8-4B-Distill-GGUF/resolve/main"
-if [ ! -s "$MODELS/qwen3.8-4b/Qwen3.8-4B-Q4_K_M.gguf" ]; then
-  ok "downloading Qwen3.8-4B-Q4_K_M.gguf (compaction model, 2.78 GB)"
-  curl -fL --retry 3 -C - "$C/Qwen3.8-4B-Q4_K_M.gguf" -o "$MODELS/qwen3.8-4b/Qwen3.8-4B-Q4_K_M.gguf" \
-    || die "compaction model download failed"
-fi
+# Compaction model: abliterated Qwen3.8-4B-Distill, same qwen35 hybrid family as
+# the 27B, so its 262144 window is cheap. Abliterated so the whole contract is
+# uncensored; Q8_0 because repl/measure-quant showed Q4 drops rejected
+# alternatives from summaries.
+C="https://huggingface.co/mradermacher/Qwen3.5-4B-EmperoAI-Qwen3.8-Distill-Heretic-Abliterated-GGUF/resolve/main"
+SRC="Qwen3.5-4B-EmperoAI-Qwen3.8-Distill-Heretic-Abliterated.Q8_0.gguf"
+fetch "$C/$SRC" "$MODELS/qwen3.8-4b/Qwen3.8-4B-Distill-abliterated-Q8_0.gguf" \
+  987703a1aca82f0641f8fbcfbe7d6a8e483f713d4a793553ccac55cf9da2ba0c
 ok "compaction model present"
 
 # ---------------------------------------------------------------- wiring
