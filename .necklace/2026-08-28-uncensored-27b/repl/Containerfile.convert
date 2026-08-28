@@ -1,0 +1,30 @@
+# HF safetensors -> GGUF converter for Qwen3.8, at the ROCmI4 commit.
+#
+# Separate from the engine image: that one is a HIP build with /src stripped and
+# no Python stack, and adding torch to it would double an already 19 GB image
+# for a step that runs once. CPU-only torch here -- conversion never touches the
+# GPU, and the CPU wheel is a fraction of the ROCm one.
+FROM docker.io/library/ubuntu:24.04
+
+ARG PINNED_COMMIT=c49ebdbd5c9f01ec242369f9e7f7967855f80cba
+ARG REPO=https://github.com/charlie12345/ROCmFPX.git
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates git python3 python3-pip python3-venv \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN git clone --filter=blob:none "$REPO" /src \
+ && git -C /src checkout --detach "$PINNED_COMMIT"
+
+# The fork pins its own converter deps; use them rather than guessing versions.
+# transformers 5.5.1 and numpy 1.26 are both load-bearing for the qwen3_5 path.
+RUN python3 -m venv /venv \
+ && /venv/bin/pip install --no-cache-dir -U pip \
+ && /venv/bin/pip install --no-cache-dir \
+      -r /src/requirements/requirements-convert_hf_to_gguf.txt \
+ && /venv/bin/pip install --no-cache-dir -e /src/gguf-py
+
+ENV PATH=/venv/bin:$PATH
+WORKDIR /src
+VOLUME /models
+ENTRYPOINT ["/venv/bin/python3", "/src/convert_hf_to_gguf.py"]
