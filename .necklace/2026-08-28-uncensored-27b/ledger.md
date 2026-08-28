@@ -486,3 +486,20 @@ map applies to the *converted* GGUF, not to the source. If the converter names
 anything differently than Kairic's build did, the map will not line up and the
 mismatch has to be caught by comparing name sets before quantising, not by
 noticing bad output afterwards.
+
+## Two self-inflicted process errors in one session
+
+**Appending to a running script.** Step 3 was appended to `chain.sh` while that
+script was executing. Bash reads a script by file offset, so editing one under a
+live shell is undefined — it may run the addition, skip it, or garble the
+parse. Nothing was lost because the chain was idle in a wait loop, but the fix
+was to rewrite the file and relaunch, not to hope. Write the whole chain before
+starting it.
+
+**`pkill -f` matching its own command line, again.** `pkill -f 'chain.sh'` was
+issued from a shell whose command line contained `chain.sh`, so it killed
+itself along with both chains — exit 144, second time this session after the
+identical mistake with the model filename. The fetch survived only because its
+pattern differed.
+
+Kill by pid. `chain.realpid` now holds it.
