@@ -546,3 +546,44 @@ variant, not the recipe. Its number is still worth keeping — it brackets from
 above, and if it lands near Kairic's 48 while carrying more bits, that is itself
 informative. But it does not answer the question the step was designed for and
 must not be recorded as if it did.
+
+## Step 3 answered: the sidecars carry most of it, but not as much as feared
+
+With all 506 tensors pinned, the output matched Kairic exactly — 454
+Q4_0_ROCMFP4, 50 Q6_0_ROCMFPX, 360 F32, one Q8_0 head, one Q6_K embedding, and
+16.6 GB on disk against Kairic's 16.6 GB. The recipe transferred.
+
+    ROCmFP4 uniform                ~22     previous cycle
+    Kairic recipe, high-precision   21.5   the botched run, more bits
+    Kairic recipe, correct          28.23  +/-0.4%
+    uniform ROCmI4                 ~35     five configurations
+    Kairic + IU4 sidecars          ~48
+
+**The recipe is real and transferable.** 22 to 28.2 is +28% for the same bit
+budget, purely from placing 6-bit on late-layer recurrent-state and
+residual-writer paths. That is a finding worth having independently of this
+project.
+
+**And it is not the fast path.** Uniform ROCmI4 measures ~35 with no sidecars and
+no recipe, beating Kairic's own base by a quarter. So the best public route to a
+fast uncensored model was the one measured first, and the several hours spent
+extracting the precision map produced a worse model than the format already
+sitting on disk.
+
+That is not wasted — it is what settles the question the cycle existed to ask.
+The bracket is now closed on both sides and the sidecars are worth 35 to 48,
+about 1.37x over the best public alternative, rather than the 2.2x it looked
+like when the base was mismeasured at 21.5.
+
+**Where that leaves an uncensored 27B on this machine:**
+
+    ~22   Kairic recipe without the recipe (plain ROCmFP4)
+    ~28   Kairic's recipe, extracted and applied      <- built, on disk
+    ~35   uniform ROCmI4                              <- buildable, same tooling
+    ~48   requires the unpublished IU4 packer
+
+Two working uncensored models exist now. The remaining 1.37x is the entire
+argument for writing the packer, against a format spec that is fully readable
+but has no reference implementation to check against — except that packing stock
+Qwen3.8-27B and diffing the bytes against jcbtc's published sidecars would be
+exactly that check.
