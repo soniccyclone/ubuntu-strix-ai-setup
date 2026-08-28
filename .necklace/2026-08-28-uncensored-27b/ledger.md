@@ -756,3 +756,49 @@ Revised estimate: the container is done. What remains is one kernel read, then
 matching the quantisation arithmetic against an oracle that already exists on
 disk. That is a smaller job than "days to weeks" implied, and the earlier
 estimate was made without attempting any of it.
+
+## Packer state, precise enough to resume cold
+
+**Solved.**
+
+- Container: `PFSIU4F`, 64-byte header, 384 entries of 64 bytes, contiguous
+  offsets from `data_offset`, total exactly `PF_IU4_FILE_BYTES`.
+- Entry order per layer, six each: GATE_W4 (S4, rank 2, 2*PF_I x PF_H),
+  GATE_W4_SCALE (F32, per row), GATE_W4_SUM (I32, per row), then the same three
+  for DOWN.
+- Weight layout is `[N/64][K/8][64]` uint32, from the kernel itself:
+  `index = (ntile * words_per_k + chunk + word) * kTileN + nlocal` with
+  `kTileN = 64`. **There is no segment axis in the weight data** -- the
+  `[segment][N/64][K/segments/8][64]` in the struct comment describes something
+  else. Verified: 544 x 640 x 64 x 4 = 89,128,960, the exact entry length.
+- Codes are signed 4-bit, observed range [-8, 7], eight per uint32.
+- Scales: one f32 per row (34,816 for gate), not per segment per row.
+- Sum semantics: `sum` cancels the activation zero-point in
+  `sum_k (a_k - z) w_k = sum_k a_k w_k - z sum_k w_k`, so it must be the sum of
+  the row's signed codes. Confirmed by purpose, not yet by arithmetic.
+
+**Activation quantisation, read from `pack_input_u4_hadamard`** -- asymmetric
+unsigned 4-bit, per segment per row:
+
+    scale = (hi - lo) / 15                       hi/lo over the segment
+    zero  = clamp(round(-lo / scale), 0, 15)
+    code  = clamp(round(value / scale) + zero, 0, 15)
+
+with `value` pre-multiplied by an optional per-channel scale and the Hadamard
+applied before. Weights are signed rather than asymmetric, so their scale is
+presumably `max|w| / 7` or `/8` -- untested.
+
+**The one remaining unknown.** `nlocal` in that index expression is an LDS slot,
+not a row. The fragment load out of `w_lds` applies the B-fragment swizzle of
+`v_wmma_i32_16x16x16_iu4` on top, and that mapping is an instruction property.
+Assuming `row = ntile*64 + nlocal` gives sums in the right magnitude but no
+matches, which is exactly what a within-tile permutation looks like.
+
+Next move: read the fragment load from `w_lds` into the WMMA call (around lines
+640-700 of `promptforge_iu4.cuh`) and recover the slot-to-row mapping. With it,
+the stored sums become a per-row checksum over the entire published file --
+34,816 independent checks on layer 0 alone -- which validates addressing and
+then lets the scale rule be fitted against the GGUF weights.
+
+Everything needed to resume is in this section plus
+`repl/kairic-precision-map.json`. The oracle is `~/models/qwen3.8-kairic/`.
