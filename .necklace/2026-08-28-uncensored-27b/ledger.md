@@ -96,3 +96,41 @@ Kairic here, and that is a measurement rather than an argument.
 at `0fc9568` in `harness/Containerfile.rocmfpx-hip`, which predates ROCmI4. A
 newer pin is needed, and it must go in a *new* image rather than moving that pin
 or touching `Containerfile.kairic`, so the working setup is untouched.
+
+## The rest of the chain is public too
+
+`convert_hf_to_gguf.py` in `charlie12345/ROCmFPX` registers
+`Qwen3_5ForConditionalGeneration` — the abliterated model's exact architecture —
+and carries a dedicated `_Qwen35MtpMixin` plus `supports_mtp_export`,
+`mtp_only` and `no_mtp` flags. MTP export is a first-class option, not an
+accident.
+
+`huihui-ai/Huihui-Qwen3.8-27B-abliterated` is bf16 safetensors, 27.78B
+parameters, 73.8 GB, and its config reports:
+
+    num_hidden_layers      64      matches PF_LAYERS
+    hidden_size          5120      matches PF_H
+    intermediate_size   17408      matches PF_I
+    mtp_num_hidden_layers   1      the MTP head is declared
+
+The dimensions matching matters beyond ROCmI4: it means the IU4 sidecar
+constants would also fit this model unchanged, so the packer route stays open as
+a fallback rather than being closed by architecture.
+
+MTP is the difference between roughly 14 and roughly 44 tok/s on the card's own
+figures, so whether it survives conversion is the single largest risk in the
+chain. The config declaring it is necessary, not sufficient — abliteration edits
+tensors rather than deleting them, so the weights should be intact, but that is
+an inference and the conversion is where it would actually be lost.
+
+## Costs, checked rather than assumed
+
+    huihui-ai safetensors      73.8 GB   download
+    GGUF bf16 intermediate    ~55.6 GB   convert
+    Q4_0_ROCMI4               ~14.5 GB   quantise
+    peak concurrent          ~129   GB
+
+2.1 TB free, so disk is a non-issue. Worth noting the serving footprint goes the
+right way: ROCmI4 is 14.5 GB against Kairic's 16.6 GB GGUF plus 11.4 GB of
+sidecars, 28.0 GB total. Roughly half the resident memory for a model claiming
+the same speed.
