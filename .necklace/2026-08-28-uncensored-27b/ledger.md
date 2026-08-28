@@ -934,3 +934,162 @@ validate against the published file.
 - Work on branch `necklace/uncensored-27b`, not master.
 - Background-task notifications are the only reliable wake signal on this setup;
   a session cron job was registered and fired zero times across five idle hours.
+
+# Packer, session 2: the layout was never the WMMA swizzle
+
+## Step 1 closed in one read: the `F` file does not go through that kernel
+
+The handoff's index expression came from `gemm_u4s4` in `promptforge_iu4.cuh`.
+That kernel is the *segmented* path (`PROMPTFORGE_IU4_SEGMENTED=1`, magic
+`PFSIU4S`, per-256-column scales). Kairic runs `PROMPTFORGE_IU4_SEGMENTED=0`,
+and the unsegmented `PFSIU4F` file is handed straight to composable_kernel:
+`DeviceGemmMultipleD_Wmma_CShuffleV3<Row, Col, ...>` with `BDataType = int8_t`,
+`K = PF_H / 2`, `StrideB = PF_H / 2`. The fork patches CK so that a
+`(uint8_t, int8_t)` operand pair selects `wmma_i32_16x16x16_iu4` and each byte
+carries two nibbles (`wmma_gemm.hpp:297`, "Each uint8_t carries two logical
+signed INT4 values"). There is no swizzle. The weight entry is plain row-major
+`[N][K/2]` bytes, and the loader's `validate_iu4_entry(gw, ..., rows, cols,
+rows*cols/2)` says as much.
+
+Test that closed it, on the published file, layer 0:
+
+    gate  row-major, sum of signed codes == stored GATE_W4_SUM   34816 / 34816
+    down                                 == stored DOWN_W4_SUM    5120 /  5120
+
+Nibble order is low nibble = even k. CK feeds eight consecutive bytes as the
+16-wide K operand and the activation packer (`insert_u4(word, code, i)`) puts
+column `i` in nibble `i`; both sides agree, and the fit below confirms it.
+
+The previous session's "no segment axis, 544 x 640 x 64 x 4 bytes exactly"
+observation was true and meaningless: every layout of N*K/2 bytes has that
+size. The test that distinguishes layouts is the row checksum, which is what
+the handoff said to run first.
+
+## What the sidecars are, all three
+
+    file          magic     layers      entry           rows    K      Hadamard
+    FFN.pfs       PFSIU4F   64          [ffn_gate;ffn_up]  34816  5120   GATE seed
+                                        ffn_down            5120  17408  DOWN seed
+    GDN.pfs       PFSIU4G   48 (l%4!=3) [attn_qkv;attn_gate] 16384 5120  GATE seed
+    GDN-Output    PFSIU4O   48 (l%4!=3) ssm_out             5120  6144   none
+
+Each entry triple is S4 weights, f32 per-row scale, i32 per-row sum. Table
+offset 64, data offset = table end rounded up to 4096 (28672 / 12288 / 12288).
+`run_gdn_qkvz` packs activations with `PF_GATE_HADAMARD_SEED`; `run_gdn_output`
+uses `launch_input_pack` with no rotation. Checked against the published files:
+sums match on all 16384 and 5120 rows, and the Hadamard-rotated Kairic-GGUF
+weights correlate 0.97-0.98 with the stored codes under exactly those seeds
+(0.00 unrotated, 0.01 with the wrong seed).
+
+The Hadamard is `sign(col, seed)` then an in-place natural-order butterfly over
+1024-column blocks, then `* 1/32`. H H^T = 1024 I so the rotation cancels
+between pre-rotated weights and runtime-rotated activations.
+
+## The scale rule needs the real source
+
+Every row in the published file has max|code| == 7, so the scale maps the
+row's largest rotated magnitude to 7. Reconstructing rows from Kairic's own
+GGUF (Q4_0_ROCMFP4) gives 86% code agreement and stored/(max/7) of 0.92-0.98;
+from `stock-Q4_K_M.gguf`, 89%. Both are lossy views of the weights the sidecar
+was actually packed from, and the ratio spread is what FP4's per-16 scales
+overshooting do to a max. The sidecar was built from bf16 stock.
+
+So the handoff's validation step 1 -- "pack stock from Kairic's own GGUF and
+byte-diff" -- cannot produce a byte match. Stock `Qwen/Qwen3.8-27B` bf16 is
+55.6 GB and is downloading to `~/models/qwen3.8-stock-src/` via ranged
+parallel fetch (`repl/pardl.sh`, sha256 against HF's LFS oids). Next: convert
+with `qwen-convert:c49ebdbd`, fit the rule on exact rows, byte-diff.
+
+Packer: `repl/pack_pfs.py` (runs in `qwen-convert:c49ebdbd`, 14 s per layer
+for all three files). Diff: `repl/pfs_diff.py`. Rule is pluggable; `maxabs`
+(max/7, round-half-even) is the placeholder until the fit.
+
+## The scale rule, fitted on exact rows
+
+Stock bf16 downloaded (55.6 GB, `repl/pardl.sh`, sha256 against HF's LFS
+oids; the per-file failure mode was all 32 ranged parts returning empty on a
+throttle, caught by the size check and retried). Converted with
+`qwen-convert:c49ebdbd` to `~/models/qwen3.8-stock-work/stock-bf16.gguf`.
+
+With the real source, gate layer 0 gives 512/512 rows of codes identical to
+the published file under `clip(rint(w_rot / scale), -7, 7)`, so the codes are
+round-to-nearest with a chosen scale, no error feedback. The scale is not
+MSE-optimal (that would clip at ~2.5 sigma; Kairic clips one to three values
+per row) and not on any grid. It is two rounds of least-squares refit:
+
+    s = max|w| / 7
+    repeat twice:  q = clip(rint(w / s), -7, 7);  s = <q, w> / <q, q>
+
+Iteration count 2 exactly: 0 rows match at 1 or 3. Scales land within 2 ulp
+of the published f32 (accumulation order), codes bit-exact.
+
+**Up and down are not stock.** Under that rule gate reproduced and up did not,
+with up's stored scale sitting 1.5x above max/7 and down's at 0.67x. Kairic's
+GGUF carries the same change: the sidecar reconstruction is 0.18 relative
+error against Kairic's own FP4 up but 0.76 against stock. It is a per-channel
+rebalancing of the FFN intermediate, which is a free reparameterisation:
+
+    s_j = sqrt( max|down[:, j]| / max|up[j, :]| )      (f32)
+    up[j, :]  *= s_j            down[:, j] /= s_j
+    both rounded to bf16 before packing
+
+log-correlation between that formula and the observed per-row factors is
+1.0000. The bf16 rounding is what the last 0.3% of code mismatches were: with
+it, up is 512/512 and down 510/512 rows exact. The norms and every other F32
+side tensor in Kairic's GGUF equal stock, so nothing else is folded.
+
+**GDN output** is `s = max|w|/7` with the division done in f32; 5120/5120 rows
+bit-exact including scales, and only in f32 (f64 loses 30% of rows to ties).
+
+**GDN qkvz** uses the two-refit rule (scale within 1e-4 of published) but 1.4%
+of codes differ, uniformly across q, k, v and z, always by +/-1 and always
+within 0.04 code-widths of a rounding tie. Not bf16 or f16 rounding of the
+rotation at any stage, not a folded conv1d or norm (all equal stock), not a
+checkpoint revision (the HF repo has one weight upload). Some sub-percent
+perturbation of the source that I cannot name. The effect is a coin flip on
+values that sit on the boundary between two codes, so the error introduced is
+at the level of the quantisation noise itself. Accepted and recorded.
+
+## Whole-file diff, stock repack vs published (`repl/diff-*.txt`)
+
+    FFN         codes 100.000% of nibbles, sums 99.98% bit-exact,
+                scales ~90% bit-exact and the rest within 2 ulp
+    GDN-Output  100% bit-exact, every entry
+    GDN qkvz    98.5% of nibbles
+
+Headers and tables identical. Packing takes ~1 min/layer on this machine when
+two packs run concurrently; the packer is `repl/pack_pfs.py`, the diff
+`repl/pfs_diff.py`, the fit scripts `repl/probe_bal.py`, `repl/iter_sweep.py`,
+`repl/verify_rule.py`.
+
+Abliterated sidecars are at `~/models/qwen3.8-ablit-work/pfs/`.
+
+## Served and measured (`repl/sidecar-bench.sh`, `repl/sidecar-bench.tsv`)
+
+Kairic's own engine and runner (`kairic:v1.1`, `run-kairic-serve.sh` mounted
+read-only), compatibility mode, greedy, one slot, HumanEval pool, five repeats,
+the same flags as the `kairic-ref` arm measured earlier this cycle.
+
+    arm                                  per-stream       accept   GTT
+    kairic-ref (published sidecars)      48.75 +/-6.5%    72.8     47 GiB
+    stock-repacked (this packer)         47.56 +/-5.4%    71.4     49 GiB
+    ablit-sidecars                       48.44 +/-8.0%    71.6     49 GiB
+
+    ablit ROCmI4, best previous          ~35
+    ablit KairicRecipe, no sidecars      ~28
+
+`promptforge_init` reported `v_wmma_i32_16x16x16_iu4`, `block_hadamard_1024`,
+8,576,856,064 device bytes on both arms, i.e. the files went through the
+validators and the IU4 path was live. The repack lands inside the reference's
+noise band, so the format, the rule and the rebalancing are right in the one
+way the byte-diff cannot show. The abliterated model now serves at Kairic's
+speed: 1.38x over the best uncensored build before this.
+
+Quality (`repl/sidecar-quality.tsv`): ablit + sidecars scores HumanEval
+pass@1 92.7% (152/164), identical to the same GGUF without sidecars (92.7%)
+and above the ROCmI4 build (91.5%). Throughput on that run 48.39 +/-8.6%.
+No regression. Machine returned to 4 GiB GTT, no containers, after every arm.
+
+Validation as listed in the handoff: 1 done (byte-diff, with the caveat that
+the source is stock bf16 rather than Kairic's GGUF), 2 done, 3 done, 4 done,
+5 done.

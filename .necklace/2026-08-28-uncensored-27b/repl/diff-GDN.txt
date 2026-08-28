@@ -1,0 +1,146 @@
+header equal: True 
+entries 144 144
+layer  0 kind 20 bytes 0.97119 nibbles 0.98549
+layer  0 kind 21 exact 0.41844
+layer  0 kind 22 exact 0.74712
+layer  1 kind 20 bytes 0.96986 nibbles 0.98481
+layer  1 kind 21 exact 0.41440
+layer  1 kind 22 exact 0.74622
+layer  2 kind 20 bytes 0.97049 nibbles 0.98513
+layer  2 kind 21 exact 0.41736
+layer  2 kind 22 exact 0.74478
+layer  4 kind 20 bytes 0.97056 nibbles 0.98517
+layer  4 kind 21 exact 0.42078
+layer  4 kind 22 exact 0.74594
+layer  5 kind 20 bytes 0.97041 nibbles 0.98509
+layer  5 kind 21 exact 0.41885
+layer  5 kind 22 exact 0.74525
+layer  6 kind 20 bytes 0.96993 nibbles 0.98484
+layer  6 kind 21 exact 0.41530
+layer  6 kind 22 exact 0.74440
+layer  8 kind 20 bytes 0.97038 nibbles 0.98507
+layer  8 kind 21 exact 0.41852
+layer  8 kind 22 exact 0.74548
+layer  9 kind 20 bytes 0.97043 nibbles 0.98510
+layer  9 kind 21 exact 0.41653
+layer  9 kind 22 exact 0.74359
+layer 10 kind 20 bytes 0.96993 nibbles 0.98484
+layer 10 kind 21 exact 0.41655
+layer 10 kind 22 exact 0.74583
+layer 12 kind 20 bytes 0.96989 nibbles 0.98483
+layer 12 kind 21 exact 0.41730
+layer 12 kind 22 exact 0.74414
+layer 13 kind 20 bytes 0.97084 nibbles 0.98531
+layer 13 kind 21 exact 0.42023
+layer 13 kind 22 exact 0.74419
+layer 14 kind 20 bytes 0.97010 nibbles 0.98493
+layer 14 kind 21 exact 0.41676
+layer 14 kind 22 exact 0.74307
+layer 16 kind 20 bytes 0.97011 nibbles 0.98494
+layer 16 kind 21 exact 0.41901
+layer 16 kind 22 exact 0.74611
+layer 17 kind 20 bytes 0.97027 nibbles 0.98502
+layer 17 kind 21 exact 0.41763
+layer 17 kind 22 exact 0.74419
+layer 18 kind 20 bytes 0.97018 nibbles 0.98497
+layer 18 kind 21 exact 0.41942
+layer 18 kind 22 exact 0.74420
+layer 20 kind 20 bytes 0.97015 nibbles 0.98495
+layer 20 kind 21 exact 0.41640
+layer 20 kind 22 exact 0.74487
+layer 21 kind 20 bytes 0.96972 nibbles 0.98474
+layer 21 kind 21 exact 0.41621
+layer 21 kind 22 exact 0.74379
+layer 22 kind 20 bytes 0.97067 nibbles 0.98522
+layer 22 kind 21 exact 0.41570
+layer 22 kind 22 exact 0.74477
+layer 24 kind 20 bytes 0.96917 nibbles 0.98446
+layer 24 kind 21 exact 0.41240
+layer 24 kind 22 exact 0.74500
+layer 25 kind 20 bytes 0.96946 nibbles 0.98460
+layer 25 kind 21 exact 0.41396
+layer 25 kind 22 exact 0.74365
+layer 26 kind 20 bytes 0.96875 nibbles 0.98424
+layer 26 kind 21 exact 0.41132
+layer 26 kind 22 exact 0.74368
+layer 28 kind 20 bytes 0.96862 nibbles 0.98418
+layer 28 kind 21 exact 0.41222
+layer 28 kind 22 exact 0.74373
+layer 29 kind 20 bytes 0.96953 nibbles 0.98464
+layer 29 kind 21 exact 0.41289
+layer 29 kind 22 exact 0.74341
+layer 30 kind 20 bytes 0.96859 nibbles 0.98416
+layer 30 kind 21 exact 0.41130
+layer 30 kind 22 exact 0.74518
+layer 32 kind 20 bytes 0.96854 nibbles 0.98413
+layer 32 kind 21 exact 0.40906
+layer 32 kind 22 exact 0.74374
+layer 33 kind 20 bytes 0.96866 nibbles 0.98420
+layer 33 kind 21 exact 0.41232
+layer 33 kind 22 exact 0.74303
+layer 34 kind 20 bytes 0.96842 nibbles 0.98407
+layer 34 kind 21 exact 0.40933
+layer 34 kind 22 exact 0.74327
+layer 36 kind 20 bytes 0.96886 nibbles 0.98430
+layer 36 kind 21 exact 0.41080
+layer 36 kind 22 exact 0.74203
+layer 37 kind 20 bytes 0.96864 nibbles 0.98418
+layer 37 kind 21 exact 0.41278
+layer 37 kind 22 exact 0.74257
+layer 38 kind 20 bytes 0.97016 nibbles 0.98496
+layer 38 kind 21 exact 0.41609
+layer 38 kind 22 exact 0.74426
+layer 40 kind 20 bytes 0.96851 nibbles 0.98412
+layer 40 kind 21 exact 0.41040
+layer 40 kind 22 exact 0.74319
+layer 41 kind 20 bytes 0.96935 nibbles 0.98455
+layer 41 kind 21 exact 0.41115
+layer 41 kind 22 exact 0.74353
+layer 42 kind 20 bytes 0.96863 nibbles 0.98418
+layer 42 kind 21 exact 0.40956
+layer 42 kind 22 exact 0.74333
+layer 44 kind 20 bytes 0.96877 nibbles 0.98425
+layer 44 kind 21 exact 0.41051
+layer 44 kind 22 exact 0.74316
+layer 45 kind 20 bytes 0.96971 nibbles 0.98474
+layer 45 kind 21 exact 0.41371
+layer 45 kind 22 exact 0.74199
+layer 46 kind 20 bytes 0.96886 nibbles 0.98430
+layer 46 kind 21 exact 0.40923
+layer 46 kind 22 exact 0.74210
+layer 48 kind 20 bytes 0.96910 nibbles 0.98442
+layer 48 kind 21 exact 0.40918
+layer 48 kind 22 exact 0.74297
+layer 49 kind 20 bytes 0.96935 nibbles 0.98455
+layer 49 kind 21 exact 0.41174
+layer 49 kind 22 exact 0.74460
+layer 50 kind 20 bytes 0.96841 nibbles 0.98407
+layer 50 kind 21 exact 0.40982
+layer 50 kind 22 exact 0.74342
+layer 52 kind 20 bytes 0.96838 nibbles 0.98406
+layer 52 kind 21 exact 0.41208
+layer 52 kind 22 exact 0.74326
+layer 53 kind 20 bytes 0.96916 nibbles 0.98445
+layer 53 kind 21 exact 0.41606
+layer 53 kind 22 exact 0.74477
+layer 54 kind 20 bytes 0.96942 nibbles 0.98458
+layer 54 kind 21 exact 0.41736
+layer 54 kind 22 exact 0.74561
+layer 56 kind 20 bytes 0.96886 nibbles 0.98430
+layer 56 kind 21 exact 0.41844
+layer 56 kind 22 exact 0.74413
+layer 57 kind 20 bytes 0.96897 nibbles 0.98435
+layer 57 kind 21 exact 0.41953
+layer 57 kind 22 exact 0.74530
+layer 58 kind 20 bytes 0.96934 nibbles 0.98454
+layer 58 kind 21 exact 0.41985
+layer 58 kind 22 exact 0.74681
+layer 60 kind 20 bytes 0.96764 nibbles 0.98368
+layer 60 kind 21 exact 0.41614
+layer 60 kind 22 exact 0.74490
+layer 61 kind 20 bytes 0.96839 nibbles 0.98406
+layer 61 kind 21 exact 0.41829
+layer 61 kind 22 exact 0.74461
+layer 62 kind 20 bytes 0.96596 nibbles 0.98281
+layer 62 kind 21 exact 0.40775
+layer 62 kind 22 exact 0.74434

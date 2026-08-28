@@ -1,0 +1,146 @@
+header equal: True 
+entries 144 144
+layer  0 kind 40 bytes 1.00000 nibbles 1.00000
+layer  0 kind 41 exact 1.00000
+layer  0 kind 42 exact 1.00000
+layer  1 kind 40 bytes 1.00000 nibbles 1.00000
+layer  1 kind 41 exact 1.00000
+layer  1 kind 42 exact 1.00000
+layer  2 kind 40 bytes 1.00000 nibbles 1.00000
+layer  2 kind 41 exact 1.00000
+layer  2 kind 42 exact 1.00000
+layer  4 kind 40 bytes 1.00000 nibbles 1.00000
+layer  4 kind 41 exact 1.00000
+layer  4 kind 42 exact 1.00000
+layer  5 kind 40 bytes 1.00000 nibbles 1.00000
+layer  5 kind 41 exact 1.00000
+layer  5 kind 42 exact 1.00000
+layer  6 kind 40 bytes 1.00000 nibbles 1.00000
+layer  6 kind 41 exact 1.00000
+layer  6 kind 42 exact 1.00000
+layer  8 kind 40 bytes 1.00000 nibbles 1.00000
+layer  8 kind 41 exact 1.00000
+layer  8 kind 42 exact 1.00000
+layer  9 kind 40 bytes 1.00000 nibbles 1.00000
+layer  9 kind 41 exact 1.00000
+layer  9 kind 42 exact 1.00000
+layer 10 kind 40 bytes 1.00000 nibbles 1.00000
+layer 10 kind 41 exact 1.00000
+layer 10 kind 42 exact 1.00000
+layer 12 kind 40 bytes 1.00000 nibbles 1.00000
+layer 12 kind 41 exact 1.00000
+layer 12 kind 42 exact 1.00000
+layer 13 kind 40 bytes 1.00000 nibbles 1.00000
+layer 13 kind 41 exact 1.00000
+layer 13 kind 42 exact 1.00000
+layer 14 kind 40 bytes 1.00000 nibbles 1.00000
+layer 14 kind 41 exact 1.00000
+layer 14 kind 42 exact 1.00000
+layer 16 kind 40 bytes 1.00000 nibbles 1.00000
+layer 16 kind 41 exact 1.00000
+layer 16 kind 42 exact 1.00000
+layer 17 kind 40 bytes 1.00000 nibbles 1.00000
+layer 17 kind 41 exact 1.00000
+layer 17 kind 42 exact 1.00000
+layer 18 kind 40 bytes 1.00000 nibbles 1.00000
+layer 18 kind 41 exact 1.00000
+layer 18 kind 42 exact 1.00000
+layer 20 kind 40 bytes 1.00000 nibbles 1.00000
+layer 20 kind 41 exact 1.00000
+layer 20 kind 42 exact 1.00000
+layer 21 kind 40 bytes 1.00000 nibbles 1.00000
+layer 21 kind 41 exact 1.00000
+layer 21 kind 42 exact 1.00000
+layer 22 kind 40 bytes 1.00000 nibbles 1.00000
+layer 22 kind 41 exact 1.00000
+layer 22 kind 42 exact 1.00000
+layer 24 kind 40 bytes 1.00000 nibbles 1.00000
+layer 24 kind 41 exact 1.00000
+layer 24 kind 42 exact 1.00000
+layer 25 kind 40 bytes 1.00000 nibbles 1.00000
+layer 25 kind 41 exact 1.00000
+layer 25 kind 42 exact 1.00000
+layer 26 kind 40 bytes 1.00000 nibbles 1.00000
+layer 26 kind 41 exact 1.00000
+layer 26 kind 42 exact 1.00000
+layer 28 kind 40 bytes 1.00000 nibbles 1.00000
+layer 28 kind 41 exact 1.00000
+layer 28 kind 42 exact 1.00000
+layer 29 kind 40 bytes 1.00000 nibbles 1.00000
+layer 29 kind 41 exact 1.00000
+layer 29 kind 42 exact 1.00000
+layer 30 kind 40 bytes 1.00000 nibbles 1.00000
+layer 30 kind 41 exact 1.00000
+layer 30 kind 42 exact 1.00000
+layer 32 kind 40 bytes 1.00000 nibbles 1.00000
+layer 32 kind 41 exact 1.00000
+layer 32 kind 42 exact 1.00000
+layer 33 kind 40 bytes 1.00000 nibbles 1.00000
+layer 33 kind 41 exact 1.00000
+layer 33 kind 42 exact 1.00000
+layer 34 kind 40 bytes 1.00000 nibbles 1.00000
+layer 34 kind 41 exact 1.00000
+layer 34 kind 42 exact 1.00000
+layer 36 kind 40 bytes 1.00000 nibbles 1.00000
+layer 36 kind 41 exact 1.00000
+layer 36 kind 42 exact 1.00000
+layer 37 kind 40 bytes 1.00000 nibbles 1.00000
+layer 37 kind 41 exact 1.00000
+layer 37 kind 42 exact 1.00000
+layer 38 kind 40 bytes 1.00000 nibbles 1.00000
+layer 38 kind 41 exact 1.00000
+layer 38 kind 42 exact 1.00000
+layer 40 kind 40 bytes 1.00000 nibbles 1.00000
+layer 40 kind 41 exact 1.00000
+layer 40 kind 42 exact 1.00000
+layer 41 kind 40 bytes 1.00000 nibbles 1.00000
+layer 41 kind 41 exact 1.00000
+layer 41 kind 42 exact 1.00000
+layer 42 kind 40 bytes 1.00000 nibbles 1.00000
+layer 42 kind 41 exact 1.00000
+layer 42 kind 42 exact 1.00000
+layer 44 kind 40 bytes 1.00000 nibbles 1.00000
+layer 44 kind 41 exact 1.00000
+layer 44 kind 42 exact 1.00000
+layer 45 kind 40 bytes 1.00000 nibbles 1.00000
+layer 45 kind 41 exact 1.00000
+layer 45 kind 42 exact 1.00000
+layer 46 kind 40 bytes 1.00000 nibbles 1.00000
+layer 46 kind 41 exact 1.00000
+layer 46 kind 42 exact 1.00000
+layer 48 kind 40 bytes 1.00000 nibbles 1.00000
+layer 48 kind 41 exact 1.00000
+layer 48 kind 42 exact 1.00000
+layer 49 kind 40 bytes 1.00000 nibbles 1.00000
+layer 49 kind 41 exact 1.00000
+layer 49 kind 42 exact 1.00000
+layer 50 kind 40 bytes 1.00000 nibbles 1.00000
+layer 50 kind 41 exact 1.00000
+layer 50 kind 42 exact 1.00000
+layer 52 kind 40 bytes 1.00000 nibbles 1.00000
+layer 52 kind 41 exact 1.00000
+layer 52 kind 42 exact 1.00000
+layer 53 kind 40 bytes 1.00000 nibbles 1.00000
+layer 53 kind 41 exact 1.00000
+layer 53 kind 42 exact 1.00000
+layer 54 kind 40 bytes 1.00000 nibbles 1.00000
+layer 54 kind 41 exact 1.00000
+layer 54 kind 42 exact 1.00000
+layer 56 kind 40 bytes 1.00000 nibbles 1.00000
+layer 56 kind 41 exact 1.00000
+layer 56 kind 42 exact 1.00000
+layer 57 kind 40 bytes 1.00000 nibbles 1.00000
+layer 57 kind 41 exact 1.00000
+layer 57 kind 42 exact 1.00000
+layer 58 kind 40 bytes 1.00000 nibbles 1.00000
+layer 58 kind 41 exact 1.00000
+layer 58 kind 42 exact 1.00000
+layer 60 kind 40 bytes 1.00000 nibbles 1.00000
+layer 60 kind 41 exact 1.00000
+layer 60 kind 42 exact 1.00000
+layer 61 kind 40 bytes 1.00000 nibbles 1.00000
+layer 61 kind 41 exact 1.00000
+layer 61 kind 42 exact 1.00000
+layer 62 kind 40 bytes 1.00000 nibbles 1.00000
+layer 62 kind 41 exact 1.00000
+layer 62 kind 42 exact 1.00000
