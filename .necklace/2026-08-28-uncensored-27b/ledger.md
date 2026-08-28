@@ -663,3 +663,51 @@ abliterated weights. Days of focused work if the quantisation arithmetic falls
 out quickly; weeks if it does not, and there is no way to tell which from here.
 
 **What it buys.** 35 to 48, about 1.37x. Not 22 to 48.
+
+## Quality measured: the lossy path costs nothing detectable on code
+
+HumanEval pass@1, all 164 tasks, generated greedily and executed against each
+task's own test harness. Candidates ran in a throwaway container with no network
+and no mounts -- model-written code does not get a shell on this machine.
+
+    ablit-rocmi4    91.5%  (150/164)   29.95 tok/s
+    ablit-recipe    92.7%  (152/164)   23.84 tok/s
+
+Two tasks apart. Binomial SE at p=0.92, n=164 is 2.1pp and the gap is 1.2pp, so
+the two are not distinguishable. **W4A4's "lossy prompt-processing path" has no
+measurable cost on code generation**, which is the opposite of what was implied
+twice on the strength of a startup banner.
+
+Both landing near 92% also says abliteration did not damage the model, which
+makes the bf16 control far less urgent than when it was proposed.
+
+**The caveat is the whole caveat.** HumanEval prompts are a few hundred tokens.
+The failure mode the mechanism predicts is activation error accumulating through
+a long prefill, and a short prompt cannot exercise it. So the finding is: no
+degradation on short-context code. Long-context behaviour is untested and is
+precisely the regime an agent session occupies -- the sessions that prompted
+this whole line of work were hitting compaction at 107k tokens.
+
+That is the measurement worth doing next if quality is still in question, and it
+needs a different instrument than HumanEval.
+
+**Throughput here is not the production figure.** These arms ran at 32768
+context with an 8 GiB prompt cache, chosen because HumanEval prompts are short
+and a 262144 allocation would cost load time for nothing. Same server for both
+arms so the comparison holds, but 29.95 is not comparable to the 35 measured at
+production settings.
+
+## Where the cycle lands
+
+    route                          speed   pass@1   status
+    Kairic, censored                48.1     --     unchanged, still running
+    ablit uniform ROCmI4            ~35     91.5    built, on disk
+    ablit Kairic recipe             ~28     92.7    built, on disk
+    ablit + IU4 sidecars            ~48      ?      needs the unpublished packer
+
+ROCmI4 is the recommendation: statistically identical quality, 24% faster than
+the recipe build, and produced by public tooling end to end.
+
+The packer buys 1.37x on speed and, on this evidence, no quality -- Kairic's own
+recipe scores the same as ROCmI4 within noise, so there is no reason to expect
+its sidecars to score better.

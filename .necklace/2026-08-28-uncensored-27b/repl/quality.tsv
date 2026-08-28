@@ -1,0 +1,3 @@
+arm	model	tasks	passed	pass_at_1	tok_s
+ablit-rocmi4	Qwen3.8-27B-ablit-ROCMI4.gguf	164	150	91.5	29.95
+ablit-recipe	Qwen3.8-27B-ablit-KairicRecipe.gguf	164	152	92.7	23.84
