@@ -587,3 +587,79 @@ argument for writing the packer, against a format spec that is fully readable
 but has no reference implementation to check against — except that packing stock
 Qwen3.8-27B and diffing the bytes against jcbtc's published sidecars would be
 exactly that check.
+
+## Correction: no quality degradation has been measured
+
+The claim that ROCmI4 "degrades" the model was inference dressed as finding.
+What exists is a startup banner —
+
+    ROCmI4 W4A4: enabled for device 0 (lossy prompt-processing path)
+
+— and the observation that Kairic spends bits promoting fifty tensors to 6-bit,
+which implies its authors found precision mattered somewhere. Nothing has been
+measured. Not whether it degrades, by how much, or on what.
+
+**What "lossy" mechanically means here**, which is not the same as knowing the
+effect. Every format in this comparison uses 4-bit *weights*. W4A4 additionally
+rounds *activations* to 4 bits through prompt processing. Kairic does not: its
+base is 4-bit weights at normal activation precision, with 6-bit weights on the
+paths where error compounds.
+
+Three plausible failure modes follow from the mechanism, none observed:
+
+- **Long-context drift.** Activation error accumulates through prefill, so a
+  100k-token context could degrade where a short one does not. Directly relevant
+  to agent sessions, which run long.
+- **Recurrent-state error.** 48 of 64 layers are Gated DeltaNet carrying state
+  across timesteps. Kairic promoted exactly `ssm_alpha`, `ssm_beta` and `ssm_out`
+  to 6-bit, which is a strong hint about where its authors measured trouble.
+- **Exact-token tasks.** Code punishes small logit perturbations more than prose
+  does, and this is a coding model.
+
+**It is measurable cheaply.** The local `humaneval.jsonl` carries all 164 tasks
+with `test` harnesses and `entry_point` fields, so executable pass@1 scoring
+needs no download and no new dependency — generate, exec against the test,
+count. Four variants exist or nearly do: Kairic (censored reference), the
+abliterated recipe build at 28, the abliterated ROCmI4 build at 35, and the
+abliterated bf16 GGUF as an unquantised ceiling.
+
+That last one is the control that makes the rest interpretable: it separates
+what abliteration cost from what quantisation cost, and without it a low score
+cannot be attributed to either.
+
+## What reaching ~48 actually requires
+
+The IU4 sidecar packer. Scoped from what has been read rather than guessed:
+
+**Known.** The FFN container is fully specified — `PFSIU4F` magic, 64-byte
+header, 384 entries over 64 layers in fixed order, contiguous offsets, exact
+total of 8,576,856,064 bytes. Packing layout is documented in the header as
+`[segment][N/64][K/segments/8][64]`, eight 4-bit values per uint32, quantisation
+segment 256. Hadamard is a deterministic hash-based sign function with
+compile-time seeds `0xA511E9B3` (gate) and `0x63D83595` (down), block 1024. Per
+matrix: packed weights, f32 per-row scales, int32 per-row sums for the
+zero-point correction.
+
+**Not yet read.** Only `load_iu4_sidecar` has been studied. `load_gdn_iu4_sidecar`
+and the GDN-output loader are separate formats with their own entry kinds
+(`PF_GDN_OUTPUT_W4` and friends) and their own validators. Two more formats to
+specify before anything can be written.
+
+**Not known at all.** The exact quantisation arithmetic — rounding mode, how the
+per-row scale is chosen, whether sums are over raw codes or something derived.
+The reader consumes these values; it does not reveal how they were produced. A
+wrong choice yields a file that loads and produces subtly worse output, which is
+the hardest failure to detect.
+
+**The validation path is the saving grace.** Pack stock Qwen3.8-27B and diff the
+bytes against jcbtc's published FFN sidecar. It either matches exactly or it does
+not, and a mismatch localises to a layer and an entry. That converts an
+open-ended reverse-engineering problem into a closed one with an oracle. Without
+it this would not be worth attempting.
+
+**Honest effort.** Read two more loaders, implement Hadamard plus quantise plus
+pack, iterate against a byte oracle until three files match, then run it on
+abliterated weights. Days of focused work if the quantisation arithmetic falls
+out quickly; weeks if it does not, and there is no way to tell which from here.
+
+**What it buys.** 35 to 48, about 1.37x. Not 22 to 48.
