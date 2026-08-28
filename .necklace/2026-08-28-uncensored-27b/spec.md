@@ -73,28 +73,33 @@ public tool. What is missing is evidence that any of it reproduces here.
 
 ## Approach
 
-**Measure the claim before building anything on it.** The first move is to serve
-the published stock ROCmI4 model and put it against Kairic Edge on the harness
-the last cycle already built, at the same conditions. That is a download and an
-engine build, not a conversion, and it answers the question the whole plan rests
-on: does this format reach Kairic's speed *here*. If it does not, the plan
-changes before any effort goes into converting weights.
+**Superseded in part — see the ledger.** The measurements below replaced the
+premise this section was written on, and the approach now reads as follows.
 
-**Everything is additive.** A new engine image, a new serving config, a new
-model directory, a new unit. Nothing existing is edited, and the test that the
-Kairic contract still works is part of the deliverable rather than a courtesy.
+**The fast tier is not a single format, and ROCmI4 is not it.** Measured here at
+five configurations, uniform ROCmI4 caps near 35 tok/s against Kairic's 48. The
+gap is not cache, batching, speculation settings or generation length; all four
+were isolated and none of them accounts for it.
 
-**Then convert, and check the risky part first.** Abliterated safetensors
-through the public converter to GGUF, then to `Q4_0_ROCMI4`. The MTP head is the
-thing most likely to be lost silently, and a draft-acceptance rate of zero is
-what losing it looks like — so acceptance is checked before throughput is
-believed.
+**Kairic is a selective mixed-precision base plus a compute lane.** Its GGUF is
+ROCmFP4 with fifty tensors promoted to 6-bit, placed on recurrent-state and
+residual-writer paths, with IU4 living only in the sidecars. Both base types are
+public quantisation targets, and the per-tensor assignment is readable out of
+the GGUF already on this machine. Only the sidecar packer is unpublished.
 
-**Speed is not the only axis, and the cycle should say which axis it measured.**
-Abliteration removes refusals by editing weights, and four-bit quantisation
-compounds whatever that costs. A model that is fast and uncensored and
-noticeably worse at code is not obviously the win it looks like on a throughput
-table.
+**So the next measurement is a mixed-precision base without sidecars**, which
+nobody has taken and which sits in the one gap between the three figures already
+measured. It decides whether the unpublished packer matters at all or whether
+most of Kairic's advantage lives in a recipe that can simply be read and reused.
+
+**Everything stays additive.** A new engine image, a new model directory, a new
+serving config. Nothing existing is edited, and the existing contract still
+starting and answering is part of the deliverable.
+
+**Speed is still not the only axis.** ROCmI4 announces itself as a lossy
+prompt-processing path — four-bit activations, not just weights — and Kairic's
+6-bit placement is evidently a quality decision. A capability measurement would
+say what the precision choices actually buy, and no throughput table can.
 
 ## Open questions
 

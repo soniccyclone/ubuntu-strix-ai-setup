@@ -401,3 +401,47 @@ carry the format and the packer is the only route to Kairic-class speed.
 struct-unpacking loop and no dependencies. Instead the two model cards were
 compared, both say "IU4", and a conclusion was drawn from marketing copy about
 files sitting locally. Every wrong turn this cycle has that shape.
+
+## The plan that follows, written down so it survives this session
+
+Three steps, cheapest first, each with a stated abort condition. Recorded
+because until now it existed only in a chat message.
+
+**1. Extract Kairic's precision map.** Parse the 866 tensor entries out of
+`Qwen3.8-27B-IU4-Kairic-Edge.gguf` into a name-to-type table, and check those
+names against the abliterated model's tensor names. Minutes, no download, no
+GPU. *Abort if:* the names do not correspond — different tensor naming would
+mean the map cannot be transferred and the whole approach needs rethinking
+before anything is fetched.
+
+**2. Build a mixed-precision abliterated GGUF.** Fetch
+`huihui-ai/Huihui-Qwen3.8-27B-abliterated` (73.8 GB, ranged parallel or it takes
+twenty hours), convert with the fork's own `convert_hf_to_gguf.py` keeping MTP,
+then quantise per the extracted map — `Q4_0_ROCMFP4` for the base,
+`Q6_0_ROCMFPX` for the fifty. *Abort if:* `llama-quantize` cannot accept a
+per-tensor precision assignment. That is unverified; if it only takes a single
+global type, this becomes a much larger job and the plan should stop and be
+re-scoped rather than bodged.
+
+**3. Measure it without sidecars.** Same harness, same conditions, against the
+Kairic reference. Fills the one hole in the bracket.
+
+    ROCmFP4 base alone            ~22   measured, previous cycle
+    uniform ROCmI4                ~35   measured, this cycle
+    mixed-precision base           ???  <- step 3
+    ROCmFP4/Q6 base + sidecars     ~48   measured, Kairic as shipped
+
+**What the number decides.** Near 45: the sidecars contribute little, an
+uncensored model at near-current speed is reachable with public tooling only,
+and the packer is not needed. Near 25: the sidecars carry the format, and
+writing the packer is the only route to Kairic-class speed on uncensored
+weights.
+
+**Costs, computed:** 73.8 GB download, ~55 GB bf16 intermediate, ~15 GB output,
+against 2.1 TB free. Roughly half a day of mostly-unattended machine time.
+Chain it as background tasks — the session cron registered and fired zero times
+across a five-hour idle window, and background-task notifications are the only
+wake signal that has worked.
+
+**Constraint unchanged:** nothing touches the Kairic setup. New model directory,
+new engine image, `harness/Containerfile.rocmfpx-hip` keeps its 0fc9568 pin.
