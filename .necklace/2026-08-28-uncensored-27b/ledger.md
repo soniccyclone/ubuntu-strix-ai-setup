@@ -293,3 +293,58 @@ not reproduce".
 
 That is worth one arm before the format is written off, because the uncensored
 plan rides on it.
+
+## Generation length was the last hypothesis, and it is not it
+
+                    maxtok 512       maxtok 1024
+    rocmi4          34.95 ±0.6%      34.59 ±1.9%
+    kairic          48.75 ±6.5%      48.12 ±5.7%
+
+Both flat. Doubling completion length moved neither engine outside its own
+spread, so the short-completion theory for why cafonez's 44.39 does not
+reproduce is dead alongside the other three.
+
+## Conclusion on ROCmI4
+
+**It caps near 35 tok/s here.** Five configurations, each attributed rather than
+bundled:
+
+    published flags          34.95    baseline
+    + prompt cache           34.70    no effect
+    + cache + big batch      35.11    no effect
+    + cache + kairic spec    30.73    worse, despite 96.1% acceptance
+    + generation length x2   34.59    no effect
+    kairic reference         48.75
+
+The W4A4 fast path was verified enabled by the server's own banner in every arm,
+and draft acceptance ran 74.6% — better than Kairic's 72.8% — so neither a
+silently-off build nor failed speculation explains it.
+
+Against Kairic's 48.12-48.75, ROCmI4 costs **28%**. Against stock llama.cpp's
+12.23 it still wins by 2.8x, so it is a real option rather than a dead end. It
+is simply not the free lunch the card implied on this particular part.
+
+**What this does to the plan.** The uncensored route through ROCmI4 is open,
+cheap and entirely public — abliterated safetensors, the fork's own converter,
+`Q4_0_ROCMI4`, done. It lands at ~35 tok/s, not the ~44 the card advertises and
+not the ~48 Nathan runs today. So the choice is no longer "uncensored or fast"
+but "uncensored at 72% of current speed, or build the packer".
+
+The IU4 sidecar packer is better motivated now than when it was scoped. It is no
+longer the only path to an uncensored model; it is the difference between 35 and
+48, measured, on a route whose format is fully specified in `promptforge.cu` and
+whose dimensions match the abliterated weights exactly.
+
+## Two process failures worth keeping
+
+**A five-hour idle gap.** `tune.log` last wrote at 02:58, `tune2.log` was created
+at 07:41, and the only thing between them was Nathan pinging manually. The
+`/loop` cron job was registered — `CronList` confirmed it — and fired zero times.
+Asked why, I answered "the REPL was never idle" without checking, and the
+timestamps say it was idle for essentially all of it. A confident causal story
+offered in place of a two-second `stat`.
+
+**An 80-minute job announced as 25.** The 2048-token sweep was launched with a
+time estimate never computed. Eight tasks, six passes, 2048 tokens, at measured
+rates, is 47 minutes for one arm. The arithmetic fits on one line and was worth
+doing before starting, not after being asked.
