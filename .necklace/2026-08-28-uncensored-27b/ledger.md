@@ -1268,3 +1268,54 @@ Honest framing for the spin-off: "here is the packer, and here is how to
 validate it IF you have Kairic Edge to diff against" -- not a clean-room recipe.
 The value is real (a working uncensored 27B at Kairic speed) but its
 correctness proof is not portable to someone without the oracle.
+
+# Compaction quality at Q4_K_M vs Q8_0, measured
+
+Nathan pulled the 4B compaction worker from Q8_0 to Q4_K_M and asked for the
+quality cost to be measured rather than asserted. The Q8_0 had been a prior
+agent's unmeasured pick.
+
+Harness (`repl/corpus.py`, `repl/measure-quant.sh`, `repl/score.py`): 5
+realistic opencode-style transcripts, 53 seeded checkable facts -- file:line,
+identifiers, numbers, decisions taken, and decisions rejected. Each quant
+served directly off the same GGUF repo, summarised every transcript at temp 0
+top-k 1 (deterministic, one pass is the whole answer), scored on fact survival.
+Summaries kept in `repl/quant-summaries/`.
+
+    quant   raw score   corrected
+    Q8_0    52/53       53/53   (checker undercounted one -- see below)
+    Q4_K_M  51/53       51/53
+
+**The gap is 2 facts and both are the same thing.** On the perf-decision
+transcript, Q4 dropped the rejected alternative entirely -- no mention of the
+Redis cache that was considered and rejected, nor why (staleness on financial
+data). Q8 kept it as an explicit "Rejected Alternative" block. Everything else
+survived on both quants: every file:line, every number, every decision *taken*,
+the index caveat, the pre-existing-test-failure note, the not-moved
+webhook_handler.
+
+The raw 52 for Q8 is a checker artifact: my fact string for "rejected the
+cache" didn't include Q8's phrasing ("would only mask the N+1"), so it scored a
+miss on a summary that plainly contains the fact. Q8 effectively retained all
+53. Q4's two misses are real omissions, not phrasing.
+
+**Character of the loss.** Q4 summaries run consistently shorter (508 vs 727
+chars on the transcript that lost content; shorter on every one) and it
+compresses away the road-not-taken. That is precisely the class of thing
+compaction is supposed to preserve here -- this repo's own discipline is
+recording what was tried and abandoned. A handoff that drops rejected
+alternatives lets a later agent re-propose the Redis cache that was already
+killed. Soft failure, but a real one, and it is the one place Q4 differs.
+
+**What did NOT degrade.** Decisions taken, hard identifiers, numbers, and file
+locations: 100% on both. So Q4 is not lossy on the facts a continuation needs
+to *act*; it is lossy on the facts a continuation needs to avoid *relitigating*.
+
+**Scope.** One deterministic pass over 5 transcripts. Enough to characterise
+the difference (rejected-alternatives, not hard facts) and its size (one per
+five transcripts), not enough to put a tight confidence interval on the rate.
+
+**The middle rungs exist if this matters.** Same empero-ai repo ships Q5_K_M
+(3.16 GB) and Q6_K (3.56 GB) between Q4_K_M (2.78) and Q8_0 (4.61). If losing
+rejected-alternatives in compaction proves annoying in use, Q6_K is the cheap
+step back up, and it can be measured on this same harness in minutes.
