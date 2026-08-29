@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Pack Kairic-format IU4 sidecars (.pfs) from a bf16 GGUF of Qwen3.8-27B.
 
-Format recovered from promptforge.cu / promptforge_iu4.cuh at ROCmFPX c49ebdbd and
-verified byte-for-byte against Kairic Edge's published sidecars (see ledger).
+Original reimplementation of a packer that was never published. Container and entry
+kinds read from the MIT-licensed promptforge.cu / promptforge_iu4.cuh in ciru-ai/ROCmFPX
+(kairic-edge branches; ROCmFPX is a llama.cpp fork); quantisation rule and FFN rebalancing
+fitted against the Apache-2.0 sidecars of jcbtc/Qwen3.8-27B-IU4-Kairic-Edge. Provenance
+and licenses: docs/uncensored-27b-replication.md, NOTICE.
   container : 64-byte header <8sIIIIQQQQQ, 64-byte entries <HHBBHIIQQ + 32 reserved
   weights   : row-major [N][K/2] bytes, signed 4-bit in [-7,7], low nibble = even k
   FFN up/down are rebalanced per intermediate channel and bf16-rounded before packing (rebalance_ffn)

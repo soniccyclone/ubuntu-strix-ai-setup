@@ -242,3 +242,29 @@ with `K = PF_H/2` bytes; the segmented `[segment][N/64][K/8][64]` layout in
 not set. The quantisation rule and the FFN rebalancing are not in the engine
 at all; they were fitted on exact rows against the published files, which is
 why section 6 exists.
+
+## Provenance and licenses
+
+Everything consumed is public and permissively licensed; checked against the
+license files in the checkouts and the card metadata, not assumed.
+
+| Artifact | License | Where it says so |
+|---|---|---|
+| Qwen/Qwen3.8-27B | Apache-2.0 | model card |
+| huihui-ai/Huihui-Qwen3.8-27B-abliterated | Apache-2.0 | model card |
+| jcbtc/Qwen3.8-27B-IU4-Kairic-Edge, GGUF and the three `.pfs` sidecars | Apache-2.0 | card: "The model artifacts inherit the Apache 2.0 license from Qwen3.8-27B" |
+| cafonez/Qwen3.8-27B-ROCmI4-MTP-GGUF | Apache-2.0 | model card |
+| charlie12345/ROCmFPX and ciru-ai/ROCmFPX (llama.cpp forks) | MIT | `LICENSE`, `THIRD_PARTY_NOTICES.md`: the ROCmFP4 additions are MIT "unless a file states otherwise"; no promptforge file does |
+| composable_kernel, including the fork's patched copy | MIT | AMD's `LICENSE` |
+
+`tools/pack_pfs.py` is an original reimplementation. The container, entry
+kinds and dimensions were read from the MIT-licensed `promptforge.cu`; the
+layout follows from how that reader hands the file to composable_kernel; the
+quantisation rule and the FFN rebalancing were fitted against the published
+Apache-2.0 sidecars (section 6). Nothing was obtained except from public
+repositories under their stated terms.
+
+If the abliterated GGUF or sidecars are redistributed, they are Apache-2.0
+derivatives of Qwen3.8-27B: carry the license text and credit Qwen and
+huihui-ai. Nothing in this repository distributes weights. Credits are in
+[NOTICE](../NOTICE).
