@@ -10,15 +10,17 @@
 # QUALITY=1 also scores HumanEval pass@1 (LIMIT tasks, default 164).
 # The Kairic install is untouched: run-kairic-serve.sh is mounted read-only.
 set -uo pipefail
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 CTR=pfsprobe
 PORT=8093
-OUT="${OUT:-$HERE/sidecar-bench.tsv}"
-QOUT="$HERE/sidecar-quality.tsv"
+OUT="${OUT:-$REPO/bench/sidecar-bench.tsv}"
+QOUT="${QOUT:-$REPO/bench/sidecar-quality.tsv}"
 TASKS="$REPO/.necklace/2026-08-22-qwen38-27b/repl/humaneval.jsonl"
 MODELS="${MODELS:-$HOME/models}"
 ARMS="${ARMS:-stock ablit}"
+STOCK_PFS="${STOCK_PFS:-/models/qwen3.8-stock-work/pfs}"
+ABLIT_PFS="${ABLIT_PFS:-/models/qwen3.8-ablit-work/pfs}"
 
 gtt(){ echo $(( $(cat /sys/class/drm/card1/device/mem_info_gtt_used) / 1073741824 )); }
 cleanup(){ podman rm -f "$CTR" >/dev/null 2>&1 || true; }
@@ -80,7 +82,7 @@ print(f\"  pass@1 {d['pass_at_1']}%  ({d['passed']}/{d['tasks']})\")"
 
 echo "GTT before: $(gtt) GiB"
 for a in $ARMS; do case "$a" in
-  stock) arm stock-repacked /models/qwen3.8-kairic/Qwen3.8-27B-IU4-Kairic-Edge.gguf /models/qwen3.8-stock-work/pfs Qwen3.8-27B ;;
-  ablit) arm ablit-sidecars /models/qwen3.8-ablit-work/Qwen3.8-27B-ablit-KairicRecipe.gguf /models/qwen3.8-ablit-work/pfs Qwen3.8-27B-ablit ;;
+  stock) arm stock-repacked /models/qwen3.8-kairic/Qwen3.8-27B-IU4-Kairic-Edge.gguf "$STOCK_PFS" Qwen3.8-27B ;;
+  ablit) arm ablit-sidecars /models/qwen3.8-ablit-work/Qwen3.8-27B-ablit-KairicRecipe.gguf "$ABLIT_PFS" Qwen3.8-27B-ablit ;;
 esac; done
 echo "BENCH_DONE"

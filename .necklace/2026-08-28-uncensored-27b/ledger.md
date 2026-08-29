@@ -1358,3 +1358,10 @@ command, input, output and check, from public safetensors to the served
 model, plus the validation that keeps `tools/pack_pfs.py` honest. The packer,
 the diff and the parallel fetcher moved to `tools/` as first-class tools;
 `repl/` keeps the fit and probe scripts.
+
+The procedure now has a home outside this directory: `harness/Containerfile.
+qwen-convert` and `harness/Containerfile.rocmi4` (moved from `repl/`),
+`tools/kairic-recipe/` (convert-and-quantise, the map, its checker),
+`tools/sidecar-bench.sh`, and `scripts/uncensored-27b.sh` behind
+`make uncensored-{prereqs,images,weights,recipe,pack,validate,bench}`.
+`uncensored-validate` encodes the diff floors so packer drift fails loudly.

@@ -14,8 +14,9 @@
 # which would look like a disappointing result rather than a broken run.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-SRC="${SRC:-$HOME/models/qwen3.8-ablit-src}"
-WORK="${WORK:-$HOME/models/qwen3.8-ablit-work}"
+MODELS="${MODELS:-$HOME/models}"
+SRC="${SRC:-$MODELS/qwen3.8-ablit-src}"
+WORK="${WORK:-$MODELS/qwen3.8-ablit-work}"
 MAP="$HERE/kairic-precision-map.json"
 BF16="$WORK/ablit-bf16.gguf"
 OUT="$WORK/Qwen3.8-27B-ablit-KairicRecipe.gguf"

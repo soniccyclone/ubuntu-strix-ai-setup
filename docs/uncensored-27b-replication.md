@@ -32,40 +32,70 @@ So the pipeline is:
 
 ## 0. Prerequisites
 
-- The Kairic engine image `localhost/kairic:v1.1` (`make kairic-setup` builds it
-  from `harness/Containerfile.kairic`). Used unmodified.
-- Two images at ROCmFPX commit `c49ebdbd5c9f01ec242369f9e7f7967855f80cba`, built
-  from the Containerfiles in `.necklace/2026-08-28-uncensored-27b/repl/`:
+`make uncensored-prereqs` checks all of these and stops at the first failure.
 
-      podman build -t localhost/qwen-convert:c49ebdbd -f .necklace/2026-08-28-uncensored-27b/repl/Containerfile.convert .
-      podman build -t localhost/rocmi4:c49ebdbd      -f .necklace/2026-08-28-uncensored-27b/repl/Containerfile.rocmi4 .
+Hardware and kernel:
 
-  `qwen-convert` is the fork's HF-to-GGUF converter with its pinned Python
-  stack (also the numpy+gguf environment every Python tool below runs in).
-  `rocmi4` carries `/engine/llama-quantize`.
-- Kairic Edge's published GGUF and sidecars in `~/models/qwen3.8-kairic/`. Only
-  needed for the validation step; the packer does not read them.
-- ~200 GB free under `~/models`: 74 GB safetensors, 55 GB bf16 GGUF, 15 GB
-  recipe GGUF, 11 GB sidecars, plus the same again for stock if validating.
+- An AMD Strix Halo APU (`gfx1151`) with unified memory. Built and measured on
+  the Ryzen AI Max+ PRO 395 with 122.8 GiB in [README.md](../README.md).
+  Serving needs ~50 GiB of GTT for the 27B plus its 262144-token cache; the
+  compaction model beside it in the daily contract brings the peak to ~78 GiB.
+- The amdgpu driver loaded (`/dev/kfd` exists) and the user in the `render`
+  group so rootless podman can pass the device through.
+- GTT raised above the driver's half-of-RAM default: the one root step, a
+  kernel command line change with a reboot, in
+  [docs/privileged-steps.md](privileged-steps.md). The check requires >= 90 GiB.
+- ~200 GB free under `$MODELS`: 74 GB safetensors, 55 GB bf16 GGUF, 15 GB
+  recipe GGUF, 11 GB sidecars, and the same again for the stock validation.
+
+Host software, all user-level, nothing else on the host:
+
+- `podman` (rootless), `curl`, `python3` (stdlib only on the host), `sha256sum`.
+- Everything with a version that matters runs in containers pinned to ROCmFPX
+  commit `c49ebdbd5c9f01ec242369f9e7f7967855f80cba`:
+  - `harness/Containerfile.qwen-convert` -> `localhost/qwen-convert:c49ebdbd`:
+    the fork's HF-to-GGUF converter with its own pinned Python stack
+    (transformers 5.5.1, numpy 1.26, its `gguf-py`). Also the environment
+    every Python tool here runs in; the host never needs numpy.
+  - `harness/Containerfile.rocmi4` -> `localhost/rocmi4:c49ebdbd`: ROCm 7.2.2
+    HIP build of the fork for `gfx1151` with `GGML_HIP_ROCMI4_W4A4=ON`,
+    providing `/engine/llama-quantize`.
+  - `harness/Containerfile.kairic` -> `localhost/kairic:v1.1`: the serving
+    engine, built by `make kairic-setup`, used unmodified.
+- Kairic Edge's published GGUF and sidecars in `$MODELS/qwen3.8-kairic/`
+  (`make kairic-setup` fetches them). The precision map was extracted from
+  that GGUF and the validation diffs against those sidecars.
 - The HumanEval pool at `.necklace/2026-08-22-qwen38-27b/repl/humaneval.jsonl`.
 
-## 1. Download the abliterated weights
+`$MODELS` comes from `.env` (`make env`), default `~/models`.
 
-    tools/hf-pardl.sh huihui-ai/Huihui-Qwen3.8-27B-abliterated ~/models/qwen3.8-ablit-src
+## Running it
+
+    make uncensored              # every step below, in order
+    make uncensored-<step>       # prereqs images weights recipe pack validate bench
+
+`scripts/uncensored-27b.sh` implements the steps. Each is idempotent: it
+checks for its output and skips work already done, so an interrupted download
+or pack resumes on re-run. Sections 1-6 say what each step does and how to
+tell it worked.
+
+## 1. Download the abliterated weights (`make uncensored-weights`)
+
+    tools/hf-pardl.sh huihui-ai/Huihui-Qwen3.8-27B-abliterated $MODELS/qwen3.8-ablit-src
 
 Ranged parallel fetch, 32 parts per file, each file sha256-checked against
 the LFS oid HuggingFace publishes. HuggingFace shapes throughput per
 connection; a single stream gets ~1 MB/s, 32 saturate this box's link. The
 script prints `ALL_DONE`; a hash mismatch exits 1 and deletes the file.
 
-Check: `ls ~/models/qwen3.8-ablit-src/*.safetensors | wc -l` is 18.
+Check: `ls $MODELS/qwen3.8-ablit-src/*.safetensors | wc -l` is 18.
 
-## 2. Convert and quantise to Kairic's recipe
+## 2. Convert and quantise to Kairic's recipe (`make uncensored-recipe`)
 
-    .necklace/2026-08-28-uncensored-27b/repl/convert-and-quantise.sh
+    tools/kairic-recipe/convert-and-quantise.sh
 
-With `SRC` and `WORK` defaulting to `~/models/qwen3.8-ablit-src` and
-`~/models/qwen3.8-ablit-work`. It does three things and stops at the first
+With `SRC` and `WORK` defaulting to `$MODELS/qwen3.8-ablit-src` and
+`$MODELS/qwen3.8-ablit-work`. It does three things and stops at the first
 failure:
 
 1. `qwen-convert` writes `ablit-bf16.gguf` (54.7 GB, `--outtype bf16`, MTP
@@ -83,11 +113,11 @@ failure:
 Check: the last line is `CONVERT_QUANTISE_DONE` and the printed type counts
 match Kairic's (fifty Q6_0_ROCMFPX tensors).
 
-## 3. Pack the sidecars
+## 3. Pack the sidecars (`make uncensored-pack`)
 
-    S=/home/nathan/code-stuff/ubuntu-strix-ai-setup/tools
-    mkdir -p ~/models/qwen3.8-ablit-work/pfs
-    podman run --rm -v ~/models/qwen3.8-ablit-work:/work:z -v "$S":/tools:ro,z \
+    S=$(pwd)/tools   # repo checkout
+    mkdir -p $MODELS/qwen3.8-ablit-work/pfs
+    podman run --rm -v $MODELS/qwen3.8-ablit-work:/work:z -v "$S":/tools:ro,z \
       --entrypoint python3 localhost/qwen-convert:c49ebdbd \
       /tools/pack_pfs.py /work/ablit-bf16.gguf /work/pfs --prefix Qwen3.8-27B-ablit
 
@@ -125,9 +155,9 @@ files; see section 6 and the ledger for how):
   in a 64-byte table after a 64-byte header, data at the table end rounded up
   to 4096.
 
-## 4. Serve
+## 4. Serve (`make uncensored-bench`)
 
-    .necklace/2026-08-28-uncensored-27b/repl/sidecar-bench.sh
+    tools/sidecar-bench.sh
 
 with `ARMS=ablit` serves and measures; `QUALITY=1` also scores HumanEval. It
 runs `localhost/kairic:v1.1` with `config/run-kairic-serve.sh` mounted
@@ -150,31 +180,31 @@ and no line matching `promptforge:.*(invalid|wrong|cannot|failed)`. If the
 sidecars are rejected the server still starts, on the slow GGUF path, at
 ~28 tok/s; the init record is the only proof the fast path is live.
 
-## 5. Measure
+## 5. Measure (same target)
 
 Throughput: `tools/concbench.py --streams 1 --reps 5 --maxtok 512 --workload
 humaneval`, one stream, five repeats, spread reported. Quality:
 `tools/humaneval_score.py --limit 164`. `sidecar-bench.sh` runs both and
-appends to `repl/sidecar-bench.tsv` and `repl/sidecar-quality.tsv`. Expected:
+appends to `bench/sidecar-bench.tsv` and `bench/sidecar-quality.tsv`. Expected:
 per-stream within the reference's +/-6.5% of 48.75, pass@1 92.7%, and after
 the script's exit trap `podman ps` empty and GTT back to ~4 GiB
 (`/sys/class/drm/card1/device/mem_info_gtt_used`).
 
-## 6. Validating the packer itself
+## 6. Validating the packer itself (`make uncensored-validate`)
 
 This is the step that stops the packer becoming the next unknown. It packs
 stock Qwen3.8-27B and diffs against Kairic's published sidecars, which were
 built from stock bf16 (not from Kairic's FP4 GGUF; that gives only 86% code
 agreement, and the ledger records the elimination).
 
-    tools/hf-pardl.sh Qwen/Qwen3.8-27B ~/models/qwen3.8-stock-src
-    mkdir -p ~/models/qwen3.8-stock-work/pfs
-    podman run --rm -v ~/models/qwen3.8-stock-src:/src-model:ro,z -v ~/models/qwen3.8-stock-work:/work:z \
+    tools/hf-pardl.sh Qwen/Qwen3.8-27B $MODELS/qwen3.8-stock-src
+    mkdir -p $MODELS/qwen3.8-stock-work/pfs
+    podman run --rm -v $MODELS/qwen3.8-stock-src:/src-model:ro,z -v $MODELS/qwen3.8-stock-work:/work:z \
       localhost/qwen-convert:c49ebdbd /src-model --outfile /work/stock-bf16.gguf --outtype bf16
-    podman run --rm -v ~/models/qwen3.8-stock-work:/work:z -v "$S":/tools:ro,z \
+    podman run --rm -v $MODELS/qwen3.8-stock-work:/work:z -v "$S":/tools:ro,z \
       --entrypoint python3 localhost/qwen-convert:c49ebdbd /tools/pack_pfs.py /work/stock-bf16.gguf /work/pfs
     for k in FFN GDN GDN-Output; do
-      podman run --rm -v ~/models/qwen3.8-kairic:/oracle:ro,z -v ~/models/qwen3.8-stock-work/pfs:/p:ro,z -v "$S":/tools:ro,z \
+      podman run --rm -v $MODELS/qwen3.8-kairic:/oracle:ro,z -v $MODELS/qwen3.8-stock-work/pfs:/p:ro,z -v "$S":/tools:ro,z \
         --entrypoint python3 localhost/qwen-convert:c49ebdbd \
         /tools/pfs_diff.py /p/Qwen3.8-27B-Kairic-IU4-$k.pfs /oracle/Qwen3.8-27B-Kairic-IU4-$k.pfs
     done
@@ -193,8 +223,11 @@ sidecars: 47.56 tok/s +/-5.4% against the published 48.75 +/-6.5%. A packer
 that produced the byte match but a slow serve would mean the engine is not
 reading what the diff compared.
 
-Anything that moves those numbers after a change to `pack_pfs.py` is a
-regression in the packer, whatever the served model looks like.
+`make uncensored-validate` runs the download, conversion, pack and diff and
+fails if any entry kind drops below those floors (FFN codes 99.99%, sums
+99.8%, GDN-Output 100%, GDN qkvz 98%). Anything that trips it after a change
+to `pack_pfs.py` is a regression in the packer, whatever the served model
+looks like.
 
 ## Where the format came from
 
