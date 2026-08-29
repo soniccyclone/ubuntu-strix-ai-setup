@@ -1350,3 +1350,11 @@ Process: I under-searched and asserted a negative from a sample, twice in one
 exchange (Q6_K, then Q8_0). The fix is the same each time -- query the index,
 do not infer absence from the first few results. Same failure the 27B cycle
 recorded against grep patterns.
+
+## Written down so it does not become the next unknown packer
+
+`docs/uncensored-27b-replication.md` is the procedure, every step with its
+command, input, output and check, from public safetensors to the served
+model, plus the validation that keeps `tools/pack_pfs.py` honest. The packer,
+the diff and the parallel fetcher moved to `tools/` as first-class tools;
+`repl/` keeps the fit and probe scripts.
