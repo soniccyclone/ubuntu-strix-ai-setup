@@ -15,6 +15,14 @@
           "limit": { "context": 262144, "output": 32768 },
           "options": { "id_slot": 0 }
         },
+        "ablit": {
+          "name": "Qwen3.8-27B IU4 abliterated (uncensored)",
+          "tool_call": true,
+          "reasoning": true,
+          "attachment": false,
+          "limit": { "context": 262144, "output": 32768 },
+          "options": { "id_slot": 0 }
+        },
         "compact": {
           "name": "[internal] compaction worker - not for chat",
           "tool_call": false,
@@ -26,12 +34,17 @@
     }
   },
 
-  "model": "contract/code",
+  // Default is `ablit`, the uncensored 27B. `code` (censored Kairic Edge) is
+  // still selectable from the model picker; the two 27Bs swap in llama-swap, so
+  // choosing one unloads the other and costs a ~90s load. `compact` is in a
+  // persistent non-exclusive group and survives both, which is the only reason
+  // a global small_model is safe here.
+  "model": "contract/ablit",
   "small_model": "contract/compact",
 
   "agent": {
-    "general":    { "model": "contract/code" },
-    "explore":    { "model": "contract/code" },
+    "general":    { "model": "contract/ablit" },
+    "explore":    { "model": "contract/ablit" },
     "compaction": { "model": "contract/compact" },
     "title":      { "model": "contract/compact" },
     "summary":    { "model": "contract/compact" }

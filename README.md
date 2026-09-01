@@ -28,6 +28,9 @@ authors — [which is which](docs/kairic-edge-opencode.md#upstreams-behind-the-n
 fresh machine, in one command.
 **[docs/kairic-operations.md](docs/kairic-operations.md)** — running, tuning,
 and troubleshooting by symptom.
+**[docs/uncensored-27b-replication.md](docs/uncensored-27b-replication.md)** — the
+abliterated 27B with packed IU4 sidecars, every step from public weights to
+the served model, and the check that keeps the packer honest.
 
 ```
 make kairic-setup    # once: image, weights, wiring

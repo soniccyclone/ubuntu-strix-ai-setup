@@ -1,0 +1,3 @@
+arm	per_stream_tps	spread_pct	aggregate_tps	draft_n	accept_pct	gtt_gib
+stock-repacked	47.56	5.4	42.75	8480	71.4	49
+ablit-sidecars	48.44	8.0	43.47	8432	71.6	49

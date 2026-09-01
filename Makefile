@@ -12,11 +12,13 @@ TESTS     ?= tests
 .PHONY: help setup test test-isolation harness-up harness-down clean \
         media-up media-down asset viewer sprite rig llm-up llm-down chat status stop-all \
         kairic-up kairic-down kairic-install kairic-setup env \
+        uncensored uncensored-prereqs uncensored-images uncensored-weights uncensored-recipe \
+        uncensored-pack uncensored-validate uncensored-bench \
         faces-ladder ref character prompt refcheck rigcheck mesh from-ref require-subj require-img
 
 help:                    ## Show this help
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) \
-	  | awk -F':.*?## ' '{printf "  %-16s %s\n", $$1, $$2}'
+	  | awk -F':.*?## ' '{printf "  %-20s %s\n", $$1, $$2}'
 
 env:                     ## Write .env if absent, then regenerate the serving overlay
 	@scripts/env-init.sh
@@ -202,14 +204,34 @@ kairic-up:               ## Start Kairic 27B (compat+live sampling) + 4B compact
 	@avail=$$(free -g | awk 'NR==2{print $$7}'); 	  if [ "$$avail" -lt 70 ]; then 	    echo "ABORT: $${avail} GiB available, this needs 60 and leaves nothing." >&2; 	    echo "Something else is holding memory. 'make status' first." >&2; exit 1; fi
 	@systemctl --user is-active llama-swap >/dev/null 2>&1 && { 	  echo "ABORT: the 122B contract (llama-swap) is up. Two contracts do not fit." >&2; 	  echo "Run 'make llm-down' first." >&2; exit 1; } || true
 	@systemctl --user start llama-swap-kairic
-	@echo "contract on http://127.0.0.1:8080  (roles: code, compact)"
+	@echo "contract on http://127.0.0.1:8080  (roles: code, ablit, compact)"
 	@echo "models load on first request; the 27B takes ~90s."
 
 kairic-down:             ## Stop the Kairic contract and prove the memory came back
 	@systemctl --user stop llama-swap-kairic 2>/dev/null || true
-	@podman rm -f kairic-serve compact-serve >/dev/null 2>&1 || true
+	@podman rm -f kairic-serve ablit-serve compact-serve >/dev/null 2>&1 || true
 	@sleep 3
 	@printf "free now: %s GiB\n" "$$(free -g | awk 'NR==2{print $$7}')"
+
+# Abliterated Qwen3.8-27B at Kairic speed. docs/uncensored-27b-replication.md.
+# Each step is idempotent; `uncensored` runs them in order. The pack and
+# validate steps run for an hour or more; bench starts and stops a server.
+uncensored:              ## Everything below, in order: ~150 GB of downloads, hours
+	@scripts/uncensored-27b.sh all
+uncensored-prereqs:      ## Host checks: podman, /dev/kfd, render group, GTT, disk, Kairic present
+	@scripts/uncensored-27b.sh prereqs
+uncensored-images:       ## Build qwen-convert and rocmi4 images at ROCmFPX c49ebdbd
+	@scripts/uncensored-27b.sh images
+uncensored-weights:      ## Download the abliterated safetensors (74 GB, sha256-checked)
+	@scripts/uncensored-27b.sh weights
+uncensored-recipe:       ## Convert to bf16 GGUF and quantise to Kairic's mixed-precision recipe
+	@scripts/uncensored-27b.sh recipe
+uncensored-pack:         ## Pack the three IU4 sidecars from the bf16 GGUF
+	@scripts/uncensored-27b.sh pack
+uncensored-validate:     ## Pack STOCK and byte-diff against Kairic's published sidecars
+	@scripts/uncensored-27b.sh validate
+uncensored-bench:        ## Serve stock-repacked and ablit arms, measure tok/s and HumanEval, stop
+	@scripts/uncensored-27b.sh bench
 
 status:                  ## What is running and what it is costing
 	@printf "GPU busy   %s%%\n" "$$(cat /sys/class/drm/card1/device/gpu_busy_percent 2>/dev/null)"
@@ -223,7 +245,7 @@ status:                  ## What is running and what it is costing
 
 stop-all:                ## Stop EVERYTHING this repo can start, and prove it
 	@systemctl --user stop media-comfy media-engine media-rig llama-swap llama-swap-kairic contract-socket 2>/dev/null || true
-	@podman rm -f media-comfy media-engine media-rig contract-proxy kairic-serve compact-serve kairic-sweep >/dev/null 2>&1 || true
+	@podman rm -f media-comfy media-engine media-rig contract-proxy kairic-serve ablit-serve compact-serve kairic-sweep >/dev/null 2>&1 || true
 	@for p in $$(pgrep -x python3 2>/dev/null); do \
 	   tr '\0' ' ' < /proc/$$p/cmdline 2>/dev/null | grep -q "serve\.py\|pipeline\.py\|pixel_ab" && kill $$p 2>/dev/null || true; done
 	@sleep 3

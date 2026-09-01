@@ -31,3 +31,33 @@ and are governed by their own licences at their own sources:
     text-to-3D toolkit          see docs/upstream-patches.md
     gltf-validator              npm, Apache-2.0, installed by `make setup`
     model weights               see scripts/setup-kairic.sh for each source
+
+Sources behind the uncensored Qwen3.8-27B procedure (docs/uncensored-27b-
+replication.md). None of these weights or sources are distributed here; the
+tools in tools/ and the format description in that document were derived from
+them under the terms below:
+
+    Qwen/Qwen3.8-27B                          Apache-2.0   Alibaba Cloud / Qwen team
+        huggingface.co/Qwen/Qwen3.8-27B
+    huihui-ai/Huihui-Qwen3.8-27B-abliterated  Apache-2.0   abliteration of the above
+        huggingface.co/huihui-ai/Huihui-Qwen3.8-27B-abliterated
+    jcbtc/Qwen3.8-27B-IU4-Kairic-Edge         Apache-2.0   Kairic Edge GGUF and the
+        huggingface.co/jcbtc/Qwen3.8-27B-IU4-Kairic-Edge      three .pfs sidecars; the
+                                                              card states the artifacts
+                                                              inherit Apache-2.0 from Qwen
+    cafonez/Qwen3.8-27B-ROCmI4-MTP-GGUF       Apache-2.0   the ROCmI4 comparison arm
+        huggingface.co/cafonez/Qwen3.8-27B-ROCmI4-MTP-GGUF
+    charlie12345/ROCmFPX at c49ebdbd          MIT          llama.cpp fork: converter,
+        github.com/charlie12345/ROCmFPX                       quantiser, ROCmFP4/ROCmI4
+    ciru-ai/ROCmFPX, kairic-edge branches     MIT          the promptforge reader
+        github.com/ciru-ai/ROCmFPX                            (promptforge.cu,
+                                                              promptforge_iu4.cuh) the
+                                                              .pfs format was read from
+    ROCm composable_kernel (fork's patched copy) MIT        Advanced Micro Devices, Inc.
+
+    tools/pack_pfs.py is an original reimplementation of an unpublished packer.
+    Its container layout and entry kinds come from the MIT-licensed reader
+    above; its quantisation rule and FFN rebalancing were fitted against the
+    Apache-2.0 sidecars. Sidecars or GGUFs produced with it from the
+    abliterated weights remain Apache-2.0 derivatives of Qwen3.8-27B and, if
+    redistributed, must carry that license text and credit Qwen and huihui-ai.

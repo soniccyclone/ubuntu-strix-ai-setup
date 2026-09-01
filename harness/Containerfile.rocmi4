@@ -1,0 +1,64 @@
+# ROCmFPX engine at the ROCmI4 commit, W4A4 fast path ON, for gfx1151.
+#
+# SEPARATE from harness/Containerfile.rocmfpx-hip on purpose. That one pins
+# 0fc9568 (2026-08-17), which predates Q4_0_ROCMI4 (needs c49ebdbd, 2026-08-22)
+# and is what the published ROCmFP4 comparison arm was measured on. Moving its
+# pin would silently change a number this repository already publishes.
+#
+# GGML_HIP_ROCMI4_W4A4 DEFAULTS TO OFF. Without it the server still builds and
+# still loads a Q4_0_ROCMI4 model -- it just never uses the accelerated path,
+# which would look like the format simply being slow. The server prints
+# "ROCmI4 W4A4: enabled" at startup when it is really on; check for that rather
+# than trusting the build flags.
+FROM docker.io/library/ubuntu:24.04
+
+ARG ROCM_VER=7.2.2
+ARG PINNED_COMMIT=c49ebdbd5c9f01ec242369f9e7f7967855f80cba
+ARG REPO=https://github.com/charlie12345/ROCmFPX.git
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates curl gnupg build-essential cmake git ninja-build \
+      pkg-config libssl-dev python3 \
+ && curl -fsSL https://repo.radeon.com/rocm/rocm.gpg.key \
+      | gpg --dearmor -o /usr/share/keyrings/rocm.gpg \
+ && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/rocm.gpg] \
+https://repo.radeon.com/rocm/apt/${ROCM_VER} noble main" > /etc/apt/sources.list.d/rocm.list \
+ && printf 'Package: *\nPin: origin repo.radeon.com\nPin-Priority: 1001\n' \
+      > /etc/apt/preferences.d/rocm-amd \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends rocm-hip-sdk rocwmma-dev \
+ && rm -rf /var/lib/apt/lists/*
+
+ENV ROCM_PATH=/opt/rocm
+ENV PATH=/opt/rocm/bin:$PATH
+
+RUN git clone --filter=blob:none "$REPO" /src \
+ && git -C /src checkout --detach "$PINNED_COMMIT"
+
+# llama-quantize is built here too, not only the server: the next stage of this
+# cycle has to quantise abliterated weights to Q4_0_ROCMI4, and that is the tool
+# that does it. Building it now costs nothing extra.
+RUN export HIPCXX="$(hipconfig -l)/clang" HIP_PATH="$(hipconfig -R)" \
+ && cmake -S /src -B /build -G Ninja \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DGGML_HIP=ON -DGGML_VULKAN=OFF -DGGML_CUDA=OFF \
+      -DGPU_TARGETS=gfx1151 -DAMDGPU_TARGETS=gfx1151 \
+      -DCMAKE_HIP_ARCHITECTURES=gfx1151 \
+      -DGGML_HIP_ROCMI4_W4A4=ON \
+      -DGGML_HIP_ROCWMMA_FATTN=OFF \
+      -DGGML_HIP_NO_VMM=ON \
+      -DGGML_HIP_MMQ_MFMA=ON \
+      -DGGML_NATIVE=ON \
+      -DLLAMA_BUILD_SERVER=ON \
+      -DLLAMA_BUILD_WEBUI=OFF -DGGML_BUILD_TESTS=OFF -DLLAMA_BUILD_TESTS=OFF \
+ && cmake --build /build --target llama-bench llama-server llama-cli llama-quantize -j"$(nproc)" \
+ && mkdir -p /engine \
+ && cp /build/bin/llama-bench /build/bin/llama-server /build/bin/llama-cli \
+       /build/bin/llama-quantize /engine/ \
+ && cp -a /build/bin/*.so* /engine/ \
+ && rm -rf /build /src
+
+ENV LD_LIBRARY_PATH=/engine:/opt/rocm/lib
+VOLUME /models
+WORKDIR /engine
+ENTRYPOINT ["/engine/llama-server"]
